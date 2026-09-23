@@ -1,0 +1,36 @@
+name: Byg My Maps-fil
+
+on:
+  schedule:
+    - cron: "17 3 * * *" # hver nat ca. kl. 04/05 dansk tid
+  workflow_dispatch:
+  push:
+    paths:
+      - config.json
+      - tools/build_mymaps_kml.py
+      - data/mymaps-beskrivelse.txt
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Byg dist/pumpfoil-dk.kml fra regnearket
+        run: python3 tools/build_mymaps_kml.py
+      - name: Commit hvis noget er ændret
+        run: |
+          git add data/spots.csv dist/pumpfoil-dk.kml
+          if git diff --cached --quiet; then
+            echo "Ingen ændringer."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "Opdater spots fra regnearket"
+            git push
+          fi

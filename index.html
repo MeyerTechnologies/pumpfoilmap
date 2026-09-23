@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pump foil DK 🤙🏻</title>
+<meta name="description" content="Kort over pump foil-spots i Danmark: dockstart, rockstart, jumpstart og beachstart.">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  :root {
+    --bg: #ffffff;
+    --fg: #14212b;
+    --muted: #5b6b77;
+    --line: #e3e8ec;
+    --soft: #f3f6f8;
+    --accent: #0b6fa4;
+    --ok: #0f9d58;
+    --maybe: #f2b600;
+    --no: #c5221f;
+    --radius: 12px;
+    --shadow: 0 6px 24px rgba(20, 33, 43, .16);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    display: flex; flex-direction: column;
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    color: var(--fg); background: var(--bg);
+  }
+
+  header { position: relative; z-index: 1200; padding: 10px 16px 8px; border-bottom: 1px solid var(--line); background: var(--bg); }
+  .bar { display: flex; align-items: center; gap: 12px; }
+  h1 { margin: 0; font-size: 18px; white-space: nowrap; }
+  .search { position: relative; flex: 1; max-width: 360px; }
+  .search input {
+    width: 100%; padding: 8px 12px; font: inherit;
+    border: 1px solid var(--line); border-radius: 999px; background: var(--soft);
+  }
+  .search input:focus { outline: 2px solid var(--accent); outline-offset: -1px; background: var(--bg); }
+  .results {
+    position: absolute; top: calc(100% + 4px); left: 0; right: 0; margin: 0; padding: 4px; list-style: none;
+    background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow);
+    max-height: 320px; overflow-y: auto;
+  }
+  .results button {
+    display: flex; gap: 8px; width: 100%; padding: 8px 10px; border: 0; border-radius: 8px;
+    background: none; font: inherit; text-align: left; cursor: pointer; color: inherit;
+  }
+  .results button:hover, .results button:focus { background: var(--soft); outline: none; }
+  .spacer { flex: 1; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px;
+    border: 1px solid var(--line); border-radius: 999px; background: var(--bg);
+    color: var(--fg); font: inherit; font-weight: 500; text-decoration: none; cursor: pointer; white-space: nowrap;
+  }
+  .btn:hover { background: var(--soft); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover { filter: brightness(1.1); }
+
+  .chips { display: flex; gap: 6px; margin-top: 8px; overflow-x: auto; scrollbar-width: none; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px; flex: none; padding: 4px 10px;
+    border: 1px solid var(--line); border-radius: 999px; background: var(--bg);
+    font: inherit; font-size: 13px; color: var(--fg); cursor: pointer;
+  }
+  .chip[aria-pressed="false"] { opacity: .45; }
+  .chip .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
+  .chip .n { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .sep { flex: none; width: 1px; margin: 2px 4px; background: var(--line); }
+
+  main { position: relative; flex: 1; min-height: 0; }
+  #map { position: absolute; inset: 0; background: #dfe9ee; }
+
+  .pin span {
+    display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%;
+    background: var(--c); border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.35);
+    font-size: 15px; line-height: 1; transition: transform .12s;
+  }
+  .pin.no span { opacity: .8; }
+  .pin:hover span, .pin.selected span { transform: scale(1.25); }
+  .pin.selected span { box-shadow: 0 0 0 3px var(--fg), 0 2px 8px rgba(0,0,0,.4); }
+
+  .locate a { font-size: 17px; }
+
+  #panel {
+    position: absolute; z-index: 1000; top: 12px; right: 12px; bottom: 12px; width: 400px;
+    display: flex; flex-direction: column; overflow: hidden;
+    background: var(--bg); border-radius: var(--radius); box-shadow: var(--shadow);
+  }
+  #panel[hidden] { display: none; }
+  .panel-head { display: flex; align-items: flex-start; gap: 8px; padding: 14px 14px 8px 16px; }
+  .panel-head h2 { flex: 1; margin: 0; font-size: 19px; line-height: 1.25; }
+  .close { flex: none; width: 32px; height: 32px; border: 0; border-radius: 50%; background: var(--soft); font-size: 18px; cursor: pointer; color: var(--fg); }
+  .panel-body { overflow-y: auto; padding: 0 16px 16px; }
+  .badges { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: var(--soft); font-size: 13px; }
+  .badge .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--c); }
+  .actions { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  .actions .btn { padding: 6px 12px; font-size: 14px; }
+  .media-row { display: flex; gap: 8px; margin: 0 -16px 14px; padding: 0 16px; overflow-x: auto; }
+  .media { position: relative; flex: none; display: block; height: 150px; border-radius: 10px; overflow: hidden; background: var(--soft); }
+  .media img { height: 100%; width: auto; min-width: 120px; object-fit: cover; display: block; }
+  .media .play { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; font-size: 34px; text-shadow: 0 2px 8px rgba(0,0,0,.6); }
+  .media.link { display: grid; place-items: center; padding: 0 16px; color: var(--accent); }
+  .desc h4 { margin: 14px 0 2px; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  .desc p { margin: 0 0 8px; }
+  .desc a { color: var(--accent); word-break: break-all; }
+  .empty { color: var(--muted); font-style: italic; }
+  .meta { margin-top: 16px; padding-top: 10px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+
+  .toast {
+    position: absolute; z-index: 1100; left: 50%; bottom: 24px; transform: translateX(-50%);
+    padding: 10px 16px; border-radius: 999px; background: var(--fg); color: #fff; font-size: 14px; box-shadow: var(--shadow);
+    max-width: calc(100% - 32px);
+  }
+  .toast[hidden] { display: none; }
+
+  @media (max-width: 720px) {
+    header { padding: 8px 16px 6px; }
+    .bar { flex-wrap: wrap; gap: 8px; }
+    h1 { font-size: 17px; }
+    .search { order: 3; flex-basis: 100%; max-width: none; }
+    .bar .btn { padding: 6px 12px; font-size: 14px; }
+    #panel {
+      top: auto; left: 0; right: 0; bottom: 0; width: auto; max-height: 62%;
+      border-radius: 16px 16px 0 0; padding-bottom: env(safe-area-inset-bottom);
+    }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <h1>Pump foil DK 🤙🏻</h1>
+    <div class="search">
+      <input id="search" type="search" placeholder="Søg efter spot eller by…" autocomplete="off" aria-label="Søg">
+      <ul class="results" id="results" hidden></ul>
+    </div>
+    <span class="spacer"></span>
+    <a class="btn" id="mymaps-link" target="_blank" rel="noopener" title="Åbn listen i Google Maps" hidden>Google Maps ↗</a>
+    <a class="btn primary" id="submit-link" target="_blank" rel="noopener">+ Indsend spot</a>
+  </div>
+  <div class="chips" id="filters" role="toolbar" aria-label="Filtre"></div>
+</header>
+
+<main>
+  <div id="map" aria-label="Kort over spots"></div>
+  <aside id="panel" hidden aria-live="polite"></aside>
+  <div class="toast" id="toast" hidden></div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script>
+// Standardværdier. Links til regneark, formular og My Maps sættes i config.json.
+const CONFIG = {
+  sheet_csv_url: '',
+  form_url: 'https://forms.gle/9QVyi6BKm4FHChJ29',
+  my_maps_url: '',
+  fallback_csv: 'data/spots.csv',
+  center: [56.0, 10.6],
+  zoom: 7,
+};
+
+const STATUS = {
+  virker:      { label: 'Virker',      emoji: '✅', color: 'var(--ok)',    info: 'Testet og fungerer' },
+  ikke_testet: { label: 'Ikke testet', emoji: '❓', color: 'var(--maybe)', info: 'Ikke testet endnu' },
+  virker_ikke: { label: 'Virker ikke', emoji: '⛔', color: 'var(--no)',    info: 'Testet, fungerer ikke' },
+};
+const START = {
+  dock:  { label: 'Dockstart',  emoji: '🚢' },
+  rock:  { label: 'Rockstart',  emoji: '🪨' },
+  jump:  { label: 'Jumpstart',  emoji: '🏃' },
+  beach: { label: 'Beachstart', emoji: '🏖️' },
+  andet: { label: 'Andet',      emoji: '📍' },
+};
+const SHOW = /^(true|sand|ja|yes|x|1|✓|✔|☑)$/i;
+
+const $ = (id) => document.getElementById(id);
+const norm = (s) => String(s ?? '').trim().toLowerCase();
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+function statusKey(v) {
+  const s = norm(v);
+  if (!s || s.includes('ikke test') || s.includes('utestet')) return 'ikke_testet';
+  if (s.includes('ikke')) return 'virker_ikke';
+  if (s.includes('virk') || s.includes('fung') || s.includes('god')) return 'virker';
+  return 'ikke_testet';
+}
+function startKey(v) {
+  const s = norm(v);
+  return ['dock', 'rock', 'jump', 'beach'].find((k) => s.includes(k)) || (s.includes('strand') ? 'beach' : 'andet');
+}
+// Accepterer "56.1029, 9.7835" (som Google Maps kopierer), og dansk decimalkomma "56,1029 9,7835".
+function parseCoords(v) {
+  const s = String(v ?? '');
+  let m = s.match(/-?\d{1,3}\.\d+/g);
+  if (!m || m.length < 2) m = (s.match(/-?\d{1,3},\d+/g) || []).map((x) => x.replace(',', '.'));
+  if (!m || m.length < 2) return null;
+  const lat = Number(m[0]), lng = Number(m[1]);
+  return Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? [lat, lng] : null;
+}
+
+function toSpot(row, i) {
+  const pos = parseCoords(row.koordinater);
+  if (!pos) return null;
+  if ('vis' in row && !SHOW.test(String(row.vis).trim())) return null;
+  return {
+    id: String(row.id || `spot-${i + 1}`).trim(),
+    name: String(row.navn || '').trim() || 'Unavngivet spot',
+    status: statusKey(row.status),
+    start: startKey(row.start),
+    pos,
+    description: String(row.beskrivelse || '').trim(),
+    media: String(row.medier || '').split(/\s+/).filter((u) => /^https?:\/\//i.test(u)),
+    updated: String(row.opdateret || '').trim(),
+  };
+}
+
+async function loadConfig() {
+  try {
+    const res = await fetch('config.json', { cache: 'no-store' });
+    if (res.ok) Object.assign(CONFIG, await res.json());
+  } catch {}
+}
+
+async function loadRows() {
+  const parse = (text) => Papa.parse(text, { header: true, skipEmptyLines: true, transformHeader: (h) => norm(h) }).data;
+  if (CONFIG.sheet_csv_url) {
+    try {
+      const res = await fetch(CONFIG.sheet_csv_url, { cache: 'no-store' });
+      if (!res.ok) throw new Error(res.status);
+      return parse(await res.text());
+    } catch (err) {
+      console.warn('Kunne ikke hente regnearket, bruger lokal kopi', err);
+      toast('Kunne ikke hente de nyeste data — viser en gemt kopi.');
+    }
+  }
+  const res = await fetch(CONFIG.fallback_csv);
+  return parse(await res.text());
+}
+
+// ---------- Kort ----------
+const map = L.map('map', { zoomControl: true }).setView(CONFIG.center, CONFIG.zoom);
+const baseMaps = {
+  'Kort': L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  }),
+  'Satellit': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 19, attribution: 'Billeder &copy; Esri, Maxar, Earthstar Geographics',
+  }),
+};
+baseMaps['Kort'].addTo(map);
+L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
+
+const Locate = L.Control.extend({
+  options: { position: 'topleft' },
+  onAdd() {
+    const div = L.DomUtil.create('div', 'leaflet-bar locate');
+    div.innerHTML = '<a href="#" role="button" title="Vis min placering" aria-label="Vis min placering">◎</a>';
+    L.DomEvent.on(div, 'click', (e) => { L.DomEvent.preventDefault(e); map.locate({ setView: true, maxZoom: 11 }); });
+    return div;
+  },
+});
+new Locate().addTo(map);
+let meMarker;
+map.on('locationfound', (e) => {
+  meMarker?.remove();
+  meMarker = L.circleMarker(e.latlng, { radius: 7, color: '#fff', weight: 2, fillColor: '#1a73e8', fillOpacity: 1 }).addTo(map);
+});
+map.on('locationerror', () => toast('Kunne ikke finde din placering.'));
+
+// ---------- State ----------
+let spots = [];
+const markers = new Map();
+const filter = { status: new Set(Object.keys(STATUS)), start: new Set(Object.keys(START)), q: '' };
+let selectedId = null;
+
+function iconFor(spot, selected) {
+  const cls = `pin ${spot.status === 'virker_ikke' ? 'no' : ''} ${selected ? 'selected' : ''}`;
+  return L.divIcon({
+    className: cls,
+    html: `<span style="--c:${STATUS[spot.status].color}">${START[spot.start].emoji}</span>`,
+    iconSize: [30, 30], iconAnchor: [15, 15],
+  });
+}
+
+function matches(spot) {
+  if (!filter.status.has(spot.status) || !filter.start.has(spot.start)) return false;
+  if (!filter.q) return true;
+  return norm(`${spot.name} ${spot.description}`).includes(filter.q);
+}
+
+function render() {
+  for (const spot of spots) {
+    const m = markers.get(spot.id);
+    const show = matches(spot);
+    if (show && !map.hasLayer(m)) m.addTo(map);
+    if (!show && map.hasLayer(m)) m.remove();
+  }
+  renderFilters();
+}
+
+function renderFilters() {
+  const count = (key, value) => spots.filter((s) => s[key] === value).length;
+  const chip = (group, key, def, dot) => {
+    const n = count(group, key);
+    if (!n) return '';
+    const on = filter[group].has(key);
+    const icon = dot ? `<span class="dot" style="--c:${def.color}"></span>` : `<span>${def.emoji}</span>`;
+    return `<button class="chip" data-group="${group}" data-key="${key}" aria-pressed="${on}" title="${esc(def.info || def.label)}">${icon}${def.label} <span class="n">${n}</span></button>`;
+  };
+  $('filters').innerHTML =
+    Object.entries(STATUS).map(([k, d]) => chip('status', k, d, true)).join('') +
+    '<span class="sep"></span>' +
+    Object.entries(START).map(([k, d]) => chip('start', k, d, false)).join('');
+}
+
+$('filters').addEventListener('click', (e) => {
+  const btn = e.target.closest('.chip');
+  if (!btn) return;
+  const set = filter[btn.dataset.group];
+  set.has(btn.dataset.key) ? set.delete(btn.dataset.key) : set.add(btn.dataset.key);
+  render();
+});
+
+// ---------- Søgning ----------
+$('search').addEventListener('input', (e) => {
+  filter.q = norm(e.target.value);
+  render();
+  const hits = filter.q ? spots.filter((s) => norm(s.name).includes(filter.q)).slice(0, 8) : [];
+  $('results').innerHTML = hits.map((s) =>
+    `<li><button data-id="${esc(s.id)}"><span>${STATUS[s.status].emoji}</span><span>${esc(s.name)}</span></button></li>`).join('');
+  $('results').hidden = !hits.length;
+});
+$('results').addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-id]');
+  if (!btn) return;
+  $('results').hidden = true;
+  $('search').value = '';
+  filter.q = '';
+  render();
+  select(btn.dataset.id, { fly: true });
+});
+$('search').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') $('results').querySelector('button')?.click();
+  if (e.key === 'Escape') { $('results').hidden = true; }
+});
+document.addEventListener('click', (e) => { if (!e.target.closest('.search')) $('results').hidden = true; });
+
+// ---------- Detaljepanel ----------
+function mediaItem(url) {
+  const yt = url.match(/(?:youtube\.com\/(?:embed\/|watch\?v=|shorts\/)|youtu\.be\/)([\w-]{11})/);
+  if (yt) {
+    return `<a class="media" href="https://www.youtube.com/watch?v=${yt[1]}" target="_blank" rel="noopener" aria-label="Se video">
+      <img loading="lazy" src="https://img.youtube.com/vi/${yt[1]}/hqdefault.jpg" alt=""><span class="play">▶</span></a>`;
+  }
+  const drive = url.match(/drive\.google\.com\/(?:open\?id=|file\/d\/|uc\?id=)([\w-]+)/);
+  if (drive) {
+    return `<a class="media" href="${esc(url)}" target="_blank" rel="noopener"><img loading="lazy" src="https://drive.google.com/thumbnail?id=${drive[1]}&sz=w800" alt="" onerror="mediaFailed(this)"></a>`;
+  }
+  // Billeder hostet af My Maps må ikke vises på andre sider (Cross-Origin-Resource-Policy), så de bliver et link.
+  if (/mymaps\.usercontent\.google\.com/.test(url)) {
+    return `<a class="media link" href="${esc(url)}" target="_blank" rel="noopener">📷 Billede ↗</a>`;
+  }
+  if (/googleusercontent|\.(jpe?g|png|webp|gif)(\?|$)/i.test(url)) {
+    return `<a class="media" href="${esc(url)}" target="_blank" rel="noopener"><img loading="lazy" src="${esc(url)}" alt="" onerror="mediaFailed(this)"></a>`;
+  }
+  let host = url;
+  try { host = new URL(url).hostname.replace(/^www\./, ''); } catch {}
+  return `<a class="media link" href="${esc(url)}" target="_blank" rel="noopener">${esc(host)} ↗</a>`;
+}
+
+function mediaFailed(img) {
+  const link = img.parentNode;
+  link.classList.add('link');
+  link.textContent = '📷 Billede ↗';
+}
+
+function renderDescription(text) {
+  if (!text) return '<p class="empty">Ingen beskrivelse endnu. Har du været her? Indsend gerne en opdatering.</p>';
+  const linkify = (s) => s.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+  return esc(text).split(/\n\s*\n/).map((block) => {
+    const lines = block.split('\n');
+    let html = '';
+    if (/^[^.,!?]{2,40}:$/.test(lines[0].trim())) html += `<h4>${lines.shift().trim().slice(0, -1)}</h4>`;
+    if (lines.length) html += `<p>${linkify(lines.join('<br>'))}</p>`;
+    return html;
+  }).join('');
+}
+
+function openPanel(spot) {
+  const st = STATUS[spot.status], sa = START[spot.start];
+  const [lat, lng] = spot.pos;
+  $('panel').innerHTML = `
+    <div class="panel-head">
+      <h2>${esc(spot.name)}</h2>
+      <button class="close" id="close" aria-label="Luk">×</button>
+    </div>
+    <div class="panel-body">
+      <div class="badges">
+        <span class="badge"><span class="dot" style="--c:${st.color}"></span>${st.info}</span>
+        <span class="badge">${sa.emoji} ${sa.label}</span>
+      </div>
+      <div class="actions">
+        <a class="btn" href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}" target="_blank" rel="noopener">Rutevejledning</a>
+        <button class="btn" id="share">Del link</button>
+        <a class="btn" href="${esc(CONFIG.form_url)}" target="_blank" rel="noopener">Foreslå ændring</a>
+      </div>
+      ${spot.media.length ? `<div class="media-row">${spot.media.map(mediaItem).join('')}</div>` : ''}
+      <div class="desc">${renderDescription(spot.description)}</div>
+      <div class="meta">${lat.toFixed(5)}, ${lng.toFixed(5)}${spot.updated ? ` · Opdateret ${esc(spot.updated)}` : ''}</div>
+    </div>`;
+  $('panel').hidden = false;
+  $('close').onclick = () => select(null);
+  $('share').onclick = async () => {
+    const url = location.href;
+    try {
+      if (navigator.share) await navigator.share({ title: spot.name, url });
+      else { await navigator.clipboard.writeText(url); toast('Link kopieret'); }
+    } catch {}
+  };
+}
+
+function select(id, { fly = false } = {}) {
+  const prev = spots.find((s) => s.id === selectedId);
+  if (prev) markers.get(prev.id).setIcon(iconFor(prev, false));
+  selectedId = id;
+  const spot = spots.find((s) => s.id === id);
+  if (!spot) {
+    $('panel').hidden = true;
+    history.replaceState(null, '', location.pathname + location.search);
+    return;
+  }
+  const m = markers.get(spot.id);
+  m.setIcon(iconFor(spot, true));
+  if (!map.hasLayer(m)) m.addTo(map);
+  openPanel(spot);
+  history.replaceState(null, '', `#${encodeURIComponent(spot.id)}`);
+  // Panelet dækker højre side (desktop) eller bunden (mobil), så spottet placeres i den synlige del.
+  const mobile = matchMedia('(max-width: 720px)').matches;
+  const cover = mobile ? [0, $('panel').offsetHeight] : [$('panel').offsetWidth + 12, 0];
+  if (fly) {
+    const zoom = Math.max(map.getZoom(), 13);
+    const center = map.project(spot.pos, zoom).add(L.point(cover).divideBy(2));
+    map.flyTo(map.unproject(center, zoom), zoom, { duration: 0.6 });
+  } else {
+    map.panInside(spot.pos, { paddingTopLeft: [20, 20], paddingBottomRight: [cover[0] + 20, cover[1] + 20] });
+  }
+}
+
+map.on('click', () => select(null));
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && selectedId) select(null); });
+
+let toastTimer;
+function toast(msg) {
+  $('toast').textContent = msg;
+  $('toast').hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { $('toast').hidden = true; }, 3500);
+}
+
+// ---------- Start ----------
+loadConfig().then(() => {
+  $('submit-link').href = CONFIG.form_url;
+  if (CONFIG.my_maps_url) {
+    $('mymaps-link').href = CONFIG.my_maps_url;
+    $('mymaps-link').hidden = false;
+  }
+  return loadRows();
+}).then((rows) => {
+  spots = rows.map(toSpot).filter(Boolean);
+  const order = { virker_ikke: 0, ikke_testet: 1, virker: 2 };
+  for (const spot of spots) {
+    const m = L.marker(spot.pos, { icon: iconFor(spot, false), title: spot.name, zIndexOffset: order[spot.status] * 1000 });
+    m.on('click', (e) => { L.DomEvent.stopPropagation(e); select(spot.id); });
+    markers.set(spot.id, m);
+  }
+  render();
+  const openFromHash = () => {
+    const hash = decodeURIComponent(location.hash.slice(1));
+    if (hash && hash !== selectedId) select(hash, { fly: true });
+  };
+  openFromHash();
+  window.addEventListener('hashchange', openFromHash);
+}).catch((err) => {
+  console.error(err);
+  toast('Kunne ikke indlæse spots.');
+});
+</script>
+</body>
+</html>

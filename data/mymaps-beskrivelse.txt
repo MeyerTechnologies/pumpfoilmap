@@ -1,0 +1,23 @@
+Send dit bidrag/opdateringer til kortet her: https://forms.gle/9QVyi6BKm4FHChJ29
+Pumpfoil Kort over Danmark 🇩🇰 Et kort, der giver et overblik over de bedste pump foil-lokationer i Danmark. Her finder du information om steder med ideelle forhold for dockstart, optimale bundforhold og andre vigtige detaljer, der hjælper pumpfoil-entusiaster med at finde de perfekte spots til deres næste tur.
+
+Symbolforklaring:
+
+Første ikon (fra venstre), rundt med surfer på:
+
+🟢 Grøn: Godt sted, er testet og fungerer
+🟡 Gul: Ikke testet, men måske man kan få noget ud af det alligevel.
+🔴 Rød: Er testet. Fungerer ikke.
+
+Andet ikon: Dette ikon er 1:1 med første ikon, men kan ikke ses ude på selve kortet. Er blot til for at øge læsbarheden i listen.
+
+✅: Godt sted, er testet og fungerer
+❓: Ikke testet, men måske man kan få noget ud af det alligevel.
+⛔: Er testet. Fungerer ikke.
+
+Trejde ikon: Viser hvilken start der er tale om: dock, rock, strand, osv.
+
+🚢: Dock start
+🪨: Rock start
+🏃🏽‍♀️‍➡️: Jump start
+🏖️: Beach start
