@@ -1,5 +1,7 @@
 """Fælles funktioner til kandidat-kartoteket (data/kandidater.csv og data/kandidater-log.csv)."""
+import contextlib
 import csv
+import fcntl
 import math
 import re
 from datetime import datetime
@@ -14,6 +16,7 @@ TZ = ZoneInfo("Europe/Copenhagen")
 
 COLUMNS = [
     "id", "vurdering", "type", "navn", "område", "koordinater", "begrundelse", "vurderet",
+    "vand", "vand_note", "badevand", "vand_tjekket",
     "kategorier", "score", "antal_objekter", "tæt_på_spot", "auto_koordinater", "osm", "osm_status", "fundet",
 ]
 LOG_COLUMNS = ["tidspunkt", "id", "handling", "fra", "til", "note"]
@@ -24,6 +27,15 @@ VURDERINGER = {
     "måske": "Kan være brugbart, men noget er uklart (højde, dybde, adgang, billedet)",
     "nej": "Afvist – begrundelsen står i kolonnen 'begrundelse'",
     "på kortet": "Ligger allerede på kortet (tæt på et eksisterende spot)",
+}
+
+
+# Vandkvalitet og badeforhold (kolonnen 'vand'), se vand.py.
+VAND = {
+    "ok": "Officielt badevand med god kvalitet, eller badning er tilladt og vandet er rent",
+    "tvivl": "Svingende kvalitet, alger om sommeren, lavt vand eller uklare regler",
+    "nej": "Badning frarådes/forbudt eller vandet er forurenet",
+    "ukendt": "Ikke undersøgt endnu",
 }
 
 
@@ -70,6 +82,18 @@ def write_catalog(rows):
         writer.writeheader()
         writer.writerows(rows)
     tmp.replace(CATALOG)
+
+
+@contextlib.contextmanager
+def catalog_lock():
+    """Eksklusiv lås på kartoteket, så flere gennemgange kan køre samtidig uden at overskrive hinanden."""
+    lock = CATALOG.with_name(".kandidater.lock")
+    with open(lock, "w") as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(f, fcntl.LOCK_UN)
 
 
 def log(handling, sid, fra, til, note=""):

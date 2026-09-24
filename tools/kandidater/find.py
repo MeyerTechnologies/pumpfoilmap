@@ -23,7 +23,7 @@ from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from kartotek import (ROOT, SPOTS_CSV, distance_m, fmt_coords, log, parse_coords, read_catalog,  # noqa: E402
+from kartotek import (catalog_lock, ROOT, SPOTS_CSV, distance_m, fmt_coords, log, parse_coords, read_catalog,  # noqa: E402
                       read_csv, today, write_catalog)
 
 RAW = ROOT / "data/osm/raw.json"
@@ -270,4 +270,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    with catalog_lock():
+        main()

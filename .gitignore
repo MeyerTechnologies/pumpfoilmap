@@ -3,3 +3,5 @@ __pycache__/
 .claude/settings.local.json
 data/osm/raw.json
 tools/kandidater/.screens/
+tools/kandidater/.godkend/
+data/.kandidater.lock

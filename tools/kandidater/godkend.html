@@ -1,0 +1,524 @@
+<title>Kandidatkortet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Barlow+Semi+Condensed:wght@500;600;700&display=swap">
+<style>
+  :root {
+    --ground: #eef3f2;
+    --surface: #ffffff;
+    --sunk: #e3eae9;
+    --ink: #14232a;
+    --muted: #56696e;
+    --line: #d3dddc;
+    --accent: #0a6b73;
+    --accent-ink: #ffffff;
+    --land: #dbe4df;
+    --land-edge: #b9c7c1;
+    --sea: #dfeef1;
+    /* Status på Pump foil DK – samme farver som My Maps-kortet */
+    --st-ok: #0f9d58;
+    --st-maybe: #ffd600;
+    --st-no: #a52714;
+    /* Min vurdering */
+    --v-lovende: #0a6b73;
+    --v-maybe: #a8690f;
+    --v-nej: #7d8b8f;
+    /* Vand */
+    --w-ok: #1e7a4c;
+    --w-tvivl: #a8690f;
+    --w-nej: #b3261e;
+    --w-ukendt: #7d8b8f;
+    --focus: #1b74e4;
+    --display: "Barlow Semi Condensed", "Arial Narrow", system-ui, sans-serif;
+    --body: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --ground: #0e1719; --surface: #152124; --sunk: #1b2a2e; --ink: #e4edef; --muted: #9db0b5; --line: #26383c;
+      --accent: #4db3bb; --accent-ink: #0b1a1d; --land: #22322f; --land-edge: #34483f; --sea: #11202a;
+      --v-lovende: #4db3bb; --v-maybe: #e0a64a; --v-nej: #8d9ca0;
+      --w-ok: #4cbf85; --w-tvivl: #e0a64a; --w-nej: #f07068; --w-ukendt: #8d9ca0; --focus: #6aa8ff;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --ground: #0e1719; --surface: #152124; --sunk: #1b2a2e; --ink: #e4edef; --muted: #9db0b5; --line: #26383c;
+    --accent: #4db3bb; --accent-ink: #0b1a1d; --land: #22322f; --land-edge: #34483f; --sea: #11202a;
+    --v-lovende: #4db3bb; --v-maybe: #e0a64a; --v-nej: #8d9ca0;
+    --w-ok: #4cbf85; --w-tvivl: #e0a64a; --w-nej: #f07068; --w-ukendt: #8d9ca0; --focus: #6aa8ff;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { background: var(--ground); color: var(--ink); font: 15px/1.5 var(--body); }
+  button, input, textarea { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  a { color: var(--accent); }
+  h1, h2, h3, legend { font-family: var(--display); text-wrap: balance; }
+
+  .app { max-width: 1440px; margin: 0 auto; padding-inline: 16px; padding-block: 14px 32px; }
+  .top { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 8px 24px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+  .top h1 { margin: 0; font-size: 30px; font-weight: 700; letter-spacing: .01em; line-height: 1.05; }
+  .top .sub { margin: 4px 0 0; color: var(--muted); max-width: 62ch; }
+  .progress { display: flex; gap: 18px; font-variant-numeric: tabular-nums; }
+  .progress div { display: grid; }
+  .progress b { font: 700 24px/1 var(--display); }
+  .progress span { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+  .banner { margin-top: 12px; padding: 10px 14px; border-radius: 8px; background: var(--sunk); border-left: 4px solid var(--w-tvivl); }
+
+  .layout { display: grid; grid-template-columns: minmax(300px, 380px) 1fr; gap: 20px; margin-top: 16px; align-items: start; }
+  .side { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); display: grid; gap: 10px; max-height: calc(100vh - 32px); grid-template-rows: auto auto 1fr; min-height: 0; }
+
+  .mapbox { background: var(--sea); border-radius: 10px; border: 1px solid var(--line); }
+  #map { display: block; width: 100%; height: auto; max-height: 36vh; }
+  #map .land { fill: var(--land); stroke: var(--land-edge); stroke-width: 1; }
+  #map .spot { fill: var(--muted); opacity: .45; }
+  #map .c { cursor: pointer; stroke: var(--surface); stroke-width: 1.4; }
+  #map .c.sel { stroke: var(--ink); stroke-width: 3; }
+  #map .inset { fill: none; stroke: var(--land-edge); stroke-dasharray: 4 3; }
+
+  .filters { display: grid; gap: 6px; }
+  .seg { display: flex; flex-wrap: wrap; gap: 4px; }
+  .seg button { padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); cursor: pointer; font-size: 13px; }
+  .seg button[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+  .seg .n { opacity: .7; font-variant-numeric: tabular-nums; }
+
+  .list { list-style: none; margin: 0; padding: 0; overflow-y: auto; min-height: 120px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+  .list li + li { border-top: 1px solid var(--line); }
+  .item { display: grid; grid-template-columns: 12px 1fr auto; gap: 4px 10px; align-items: center; width: 100%; padding: 9px 12px; border: 0; background: none; text-align: left; cursor: pointer; }
+  .item:hover { background: var(--sunk); }
+  .item[aria-current="true"] { background: var(--sunk); box-shadow: inset 3px 0 0 var(--accent); }
+  .item .dot { width: 11px; height: 11px; border-radius: 50%; background: var(--c); }
+  .item .name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .item .sub { grid-column: 2; color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .item .dec { grid-row: 1 / span 2; grid-column: 3; font-size: 12px; font-weight: 700; text-align: right; }
+  .empty { padding: 16px; color: var(--muted); }
+
+  .detail { display: grid; gap: 16px; min-width: 0; }
+  .photo { margin: 0; border-radius: 10px; overflow: hidden; background: var(--sunk); border: 1px solid var(--line); }
+  .photo img { display: block; width: 100%; aspect-ratio: 12 / 7; object-fit: cover; }
+  .photo figcaption { padding: 6px 12px; font-size: 12px; color: var(--muted); }
+  .head h2 { margin: 0; font-size: 28px; line-height: 1.1; }
+  .head .meta { margin-top: 4px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 14px; }
+  .facts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .fact { padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; min-width: 0; }
+  .fact h3 { margin: 0 0 6px; font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .fact p { margin: 6px 0 0; }
+  .fact ul { margin: 6px 0 0; padding-left: 18px; font-size: 14px; }
+  .fact li + li { margin-top: 4px; }
+  .fact .small { font-size: 13px; color: var(--muted); word-break: break-word; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 999px; font-size: 13px; font-weight: 700; color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); }
+  .pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+
+  .decide { display: grid; gap: 14px; padding: 16px; background: var(--surface); border: 2px solid var(--accent); border-radius: 12px; }
+  .decide fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+  .decide legend { padding: 0; margin-bottom: 8px; font-size: 18px; font-weight: 600; }
+  .choice { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .choice button { padding: 14px 12px; border-radius: 10px; border: 2px solid var(--line); background: var(--ground); cursor: pointer; font: 700 18px/1.1 var(--display); }
+  .choice .go[aria-pressed="true"] { background: var(--st-ok); border-color: var(--st-ok); color: #fff; }
+  .choice .nogo[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+  .opts { display: flex; flex-wrap: wrap; gap: 6px; }
+  .opts label { position: relative; }
+  .opts input { position: absolute; opacity: 0; pointer-events: none; }
+  .opts span { display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--ground); cursor: pointer; }
+  .opts input:checked + span { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); background: var(--surface); font-weight: 700; }
+  .opts input:focus-visible + span { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .sw { width: 14px; height: 14px; border-radius: 50%; background: var(--c); border: 1px solid rgba(0,0,0,.15); }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .field { display: grid; gap: 4px; font-weight: 700; }
+  .field input, .field textarea { font-weight: 400; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--ground); width: 100%; }
+  .field textarea { min-height: 64px; resize: vertical; }
+  .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .btn { padding: 10px 16px; border-radius: 8px; border: 1px solid var(--line); background: var(--ground); cursor: pointer; font-weight: 700; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .status-line { color: var(--muted); font-size: 14px; }
+  .status-line.err { color: var(--w-nej); }
+  .keys { margin: 0; font-size: 12px; color: var(--muted); }
+  kbd { font: 12px ui-monospace, monospace; padding: 0 4px; border: 1px solid var(--line); border-radius: 4px; background: var(--ground); }
+
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+    .side { position: static; max-height: none; grid-template-rows: auto; }
+    .list { max-height: 46vh; }
+    #map { max-height: 300px; }
+    .facts, .row2 { grid-template-columns: 1fr; }
+  }
+  @media (prefers-reduced-motion: no-preference) { .item, .choice button { transition: background .12s, border-color .12s; } }
+</style>
+
+<div class="app">
+  <header class="top">
+    <div>
+      <h1>Kandidatkortet</h1>
+      <p class="sub">Steder fundet i OpenStreetMap og tjekket på luftfoto og badevandsdata. Vælg om de skal med på Pump foil DK, og med hvilken status.</p>
+    </div>
+    <div class="progress" id="progress" aria-live="polite"></div>
+  </header>
+  <div class="banner" id="banner" hidden></div>
+
+  <div class="layout">
+    <aside class="side">
+      <div class="mapbox">
+        <svg id="map" viewBox="0 0 560 680" role="img" aria-label="Oversigtskort over Danmark med kandidaterne"></svg>
+      </div>
+      <div class="filters">
+        <div class="seg" id="f-state" role="group" aria-label="Vis"></div>
+        <div class="seg" id="f-vurd" role="group" aria-label="Min vurdering"></div>
+      </div>
+      <ol class="list" id="list" aria-label="Kandidater"></ol>
+    </aside>
+    <main class="detail" id="detail"><p class="empty">Indlæser kandidater …</p></main>
+  </div>
+</div>
+
+<script>
+(() => {
+  const VURD = {
+    lovende: { label: 'Lovende', c: 'var(--v-lovende)' },
+    'måske': { label: 'Måske', c: 'var(--v-maybe)' },
+    nej: { label: 'Afvist af mig', c: 'var(--v-nej)' },
+  };
+  const VAND = {
+    ok: { label: 'Badevand ok', c: 'var(--w-ok)' },
+    tvivl: { label: 'Vand: tvivl', c: 'var(--w-tvivl)' },
+    nej: { label: 'Badning frarådes', c: 'var(--w-nej)' },
+    ukendt: { label: 'Vand ikke tjekket', c: 'var(--w-ukendt)' },
+    '': { label: 'Vand ikke tjekket', c: 'var(--w-ukendt)' },
+  };
+  const STATUS = [
+    { v: 'Virker', c: 'var(--st-ok)' },
+    { v: 'Ikke testet', c: 'var(--st-maybe)' },
+    { v: 'Virker ikke', c: 'var(--st-no)' },
+  ];
+  const STARTS = ['Dock', 'Rock', 'Jump', 'Beach', 'Andet'];
+  const TYPE = { flydebro: 'Flydebro', ponton: 'Ponton', badebro: 'Badebro', bro: 'Bro', 'slæbested': 'Slæbested', strand: 'Strand', andet: 'Andet' };
+
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const linkify = (s) => esc(s).replace(/\((https?:\/\/[^\s)]+)\)/g, '(<a href="$1" target="_blank" rel="noopener">kilde</a>)');
+  const statusColor = (v) => (STATUS.find((s) => s.v === v) || STATUS[1]).c;
+  const fmtDate = (iso) => { try { return new Date(iso).toLocaleString('da-DK', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); } catch { return iso; } };
+
+  let data = null;
+  let decisions = {};
+  let db = null;
+  let dbState = 'venter'; // venter | klar | ingen
+  let selected = null;
+  let draft = null;
+  const filter = { state: 'afventer', vurd: new Set(['lovende', 'måske']) };
+
+  const title = (c) => c.navn || `Uden navn · ${c.omraade}`;
+  const decided = (c) => decisions[c.id] && typeof decisions[c.id].med === 'boolean';
+
+  function visible() {
+    return data.candidates.filter((c) => {
+      if (!filter.vurd.has(c.vurdering)) return false;
+      if (filter.state === 'afventer') return !decided(c);
+      if (filter.state === 'besluttet') return decided(c);
+      return true;
+    });
+  }
+
+  function decisionBadge(c) {
+    const d = decisions[c.id];
+    if (!d || typeof d.med !== 'boolean') return '';
+    if (!d.med) return '<span style="color:var(--muted)">Ikke med</span>';
+    return `<span style="color:${d.status === 'Ikke testet' ? 'var(--ink)' : statusColor(d.status)}">Med · ${esc(d.status)}</span>`;
+  }
+
+  function dotColor(c) {
+    const d = decisions[c.id];
+    if (d && d.med === true) return statusColor(d.status);
+    if (d && d.med === false) return 'var(--v-nej)';
+    return VURD[c.vurdering].c;
+  }
+
+  // ---------- Rendering ----------
+  function renderProgress() {
+    const all = data.candidates.filter((c) => c.vurdering !== 'nej');
+    const done = all.filter(decided).length;
+    const med = data.candidates.filter((c) => decisions[c.id]?.med === true).length;
+    const synced = data.candidates.filter((c) => decisions[c.id]?.synk).length;
+    $('progress').innerHTML = `
+      <div><b>${done}/${all.length}</b><span>lovende og måske besluttet</span></div>
+      <div><b>${med}</b><span>med på kortet</span></div>
+      <div><b>${synced}</b><span>lagt på kortet</span></div>`;
+  }
+
+  function renderFilters() {
+    const counts = { afventer: 0, besluttet: 0, alle: 0 };
+    for (const c of data.candidates) {
+      if (!filter.vurd.has(c.vurdering)) continue;
+      counts.alle++;
+      counts[decided(c) ? 'besluttet' : 'afventer']++;
+    }
+    $('f-state').innerHTML = [['afventer', 'Afventer dig'], ['besluttet', 'Besluttet'], ['alle', 'Alle']]
+      .map(([k, l]) => `<button type="button" data-state="${k}" aria-pressed="${filter.state === k}">${l} <span class="n">${counts[k]}</span></button>`).join('');
+    const vc = {};
+    for (const c of data.candidates) vc[c.vurdering] = (vc[c.vurdering] || 0) + 1;
+    $('f-vurd').innerHTML = Object.entries(VURD)
+      .map(([k, v]) => `<button type="button" data-vurd="${k}" aria-pressed="${filter.vurd.has(k)}">${v.label} <span class="n">${vc[k] || 0}</span></button>`).join('');
+  }
+
+  function renderList() {
+    const items = visible();
+    $('list').innerHTML = items.length ? items.map((c) => `
+      <li><button type="button" class="item" data-id="${c.id}" aria-current="${c.id === selected}">
+        <span class="dot" style="--c:${dotColor(c)}"></span>
+        <span class="name">${esc(title(c))}</span>
+        <span class="dec">${decisionBadge(c)}</span>
+        <span class="sub">${esc(c.omraade)} · ${esc(VURD[c.vurdering].label)} · ${esc((VAND[c.vand] || VAND['']).label)}</span>
+      </button></li>`).join('')
+      : `<li class="empty">${filter.state === 'afventer' ? 'Ingen kandidater venter på dig her.' : 'Ingen kandidater matcher filteret.'}</li>`;
+  }
+
+  function renderMap() {
+    const vis = new Set(visible().map((c) => c.id));
+    const r = (c) => (c.id === selected ? 7 : c.vurdering === 'lovende' ? 5.5 : 4.5);
+    $('map').innerHTML = `
+      <path class="land" d="${data.outline}"/>
+      <rect class="inset" x="${data.inset.x}" y="${data.inset.y}" width="${data.inset.w}" height="${data.inset.h}" rx="6"/>
+      ${data.spots.map((s) => `<circle class="spot" cx="${s.xy[0]}" cy="${s.xy[1]}" r="2.2"/>`).join('')}
+      ${data.candidates.filter((c) => vis.has(c.id) || c.id === selected)
+        .sort((a, b) => (a.id === selected) - (b.id === selected))
+        .map((c) => `<circle class="c${c.id === selected ? ' sel' : ''}" data-id="${c.id}" cx="${c.xy[0]}" cy="${c.xy[1]}" r="${r(c)}" fill="${dotColor(c)}"><title>${esc(title(c))}</title></circle>`).join('')}`;
+  }
+
+  function renderDetail() {
+    const c = data.candidates.find((x) => x.id === selected);
+    if (!c) { $('detail').innerHTML = '<p class="empty">Vælg en kandidat på listen eller kortet.</p>'; return; }
+    const d = decisions[c.id];
+    const [lat, lng] = c.pos;
+    const w = VAND[c.vand] || VAND[''];
+    const bv = c.badevand || {};
+    const canSave = dbState === 'klar';
+    $('detail').innerHTML = `
+      ${c.img ? `<figure class="photo"><img src="${esc(c.img)}" alt="Luftfoto af ${esc(title(c))}: oversigt og nærbillede med den foreslåede startplads markeret" width="1200" height="700">
+        <figcaption>Venstre: oversigt. Højre: nærbillede ca. 240 m bredt – den røde nål er den foreslåede startplads. Luftfoto: Esri, Maxar, Earthstar Geographics.</figcaption></figure>` : ''}
+      <div class="head">
+        <h2>${esc(title(c))}</h2>
+        <div class="meta">
+          <span>${esc(c.omraade)} · ${esc(TYPE[c.type] || c.type || 'Ukendt type')}</span>
+          <a href="https://www.google.com/maps/@${lat},${lng},180m/data=!3m1!1e3" target="_blank" rel="noopener">Se i Google Maps (satellit)</a>
+          ${c.osm ? `<a href="https://www.openstreetmap.org/${esc(c.osm)}" target="_blank" rel="noopener">OpenStreetMap</a>` : ''}
+        </div>
+      </div>
+      <div class="facts">
+        <section class="fact">
+          <h3>Min vurdering af luftfotoet</h3>
+          <span class="pill" style="--c:${VURD[c.vurdering].c}">${esc(VURD[c.vurdering].label)}</span>
+          <p>${esc(c.begrundelse || 'Ingen begrundelse.')}</p>
+          <p class="small">Luftfotoet viser ikke broens højde over vandet. Den skal tjekkes på stedet.</p>
+        </section>
+        <section class="fact">
+          <h3>Vand og regler</h3>
+          <span class="pill" style="--c:${w.c}">${esc(w.label)}</span>
+          ${c.vandNote ? `<p>${linkify(c.vandNote)}</p>` : ''}
+          ${bv.officielt ? `<p class="small">EU-badevand: ${esc(bv.officielt)}${bv.profil ? ` · <a href="${esc(bv.profil)}" target="_blank" rel="noopener">badevandsprofil</a>` : ''}</p>` : ''}
+          ${bv.forhold && bv.forhold.length ? `<ul>${bv.forhold.map((f) => `<li>${linkify(f)}</li>`).join('')}</ul>` : ''}
+        </section>
+      </div>
+      <form class="decide" id="decide" novalidate>
+        <fieldset>
+          <legend>Skal stedet med på kortet?</legend>
+          <div class="choice">
+            <button type="button" class="go" data-med="true" aria-pressed="${draft.med === true}">Med på kortet</button>
+            <button type="button" class="nogo" data-med="false" aria-pressed="${draft.med === false}">Ikke med</button>
+          </div>
+        </fieldset>
+        <div id="go-fields" ${draft.med === true ? '' : 'hidden'}>
+          <div class="row2">
+            <fieldset>
+              <legend>Status på kortet</legend>
+              <div class="opts">${STATUS.map((s, i) => `<label><input type="radio" name="status" id="st-${i}" value="${s.v}" ${draft.status === s.v ? 'checked' : ''}><span><i class="sw" style="--c:${s.c}"></i>${s.v}</span></label>`).join('')}</div>
+            </fieldset>
+            <fieldset>
+              <legend>Starttype</legend>
+              <div class="opts">${STARTS.map((s) => `<label><input type="radio" name="start" id="sa-${s}" value="${s}" ${draft.start === s ? 'checked' : ''}><span>${s}</span></label>`).join('')}</div>
+            </fieldset>
+          </div>
+          <label class="field" style="margin-top:12px">Navn på kortet
+            <input id="f-navn" value="${esc(draft.navn)}" placeholder="Fx Fussing Sø badebro" autocomplete="off">
+          </label>
+        </div>
+        <label class="field">Note <span style="font-weight:400;color:var(--muted)">(valgfri – fx hvorfor, eller hvad du ved om stedet)</span>
+          <textarea id="f-note">${esc(draft.note)}</textarea>
+        </label>
+        <div class="actions">
+          <button type="submit" class="btn primary" ${canSave ? '' : 'disabled'}>Gem og næste</button>
+          <button type="button" class="btn" id="save-only" ${canSave ? '' : 'disabled'}>Gem</button>
+          <span class="status-line" id="save-status">${savedText(d)}</span>
+        </div>
+        <p class="keys"><kbd>J</kbd> med · <kbd>N</kbd> ikke med · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> status · <kbd>Enter</kbd> gem og næste · <kbd>↓</kbd><kbd>↑</kbd> næste/forrige</p>
+      </form>`;
+  }
+
+  function savedText(d) {
+    if (dbState === 'ingen') return 'Kan ikke gemme i denne visning.';
+    if (dbState === 'venter') return 'Forbinder …';
+    if (!d || typeof d.med !== 'boolean') return 'Ikke besluttet endnu.';
+    let t = `Gemt ${fmtDate(d.opdateret)}.`;
+    if (d.synk && new Date(d.synk.dato) >= new Date(d.opdateret)) t += d.med ? ` Lagt på kortet ${fmtDate(d.synk.dato)}.` : ` Registreret ${fmtDate(d.synk.dato)}.`;
+    else t += ' Kommer med ved næste opdatering af kortet.';
+    return esc(t);
+  }
+
+  function render() {
+    if (!data) return;
+    renderProgress();
+    renderFilters();
+    renderList();
+    renderMap();
+  }
+
+  // ---------- Valg og kladde ----------
+  function select(id, { scroll = false } = {}) {
+    selected = id;
+    const c = data.candidates.find((x) => x.id === id);
+    const d = decisions[id] || {};
+    draft = {
+      med: typeof d.med === 'boolean' ? d.med : null,
+      status: d.status || 'Ikke testet',
+      start: d.start || c.start || 'Dock',
+      navn: d.navn || c.navn || '',
+      note: d.note || '',
+    };
+    render();
+    renderDetail();
+    const btn = document.querySelector(`.item[data-id="${CSS.escape(id)}"]`);
+    btn?.scrollIntoView({ block: 'nearest' });
+    if (scroll && matchMedia('(max-width: 900px)').matches) $('detail').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function readForm() {
+    const f = $('decide');
+    if (!f) return;
+    draft.status = f.querySelector('input[name="status"]:checked')?.value || draft.status;
+    draft.start = f.querySelector('input[name="start"]:checked')?.value || draft.start;
+    draft.navn = $('f-navn')?.value.trim() ?? draft.navn;
+    draft.note = $('f-note')?.value.trim() ?? draft.note;
+  }
+
+  function setMed(v) {
+    readForm();
+    draft.med = v;
+    renderDetail();
+  }
+
+  function nextId(dir = 1) {
+    const items = visible();
+    const i = items.findIndex((c) => c.id === selected);
+    const pool = items.filter((c) => c.id !== selected);
+    if (!pool.length) return null;
+    if (i < 0) return pool[0].id;
+    return (items[i + dir] || items[dir > 0 ? i - 1 : i + 1] || pool[0]).id;
+  }
+
+  let saving = false;
+  async function save(andNext) {
+    if (saving || dbState !== 'klar') return;
+    readForm();
+    const status = $('save-status');
+    if (draft.med === null) { status.textContent = 'Vælg først “Med på kortet” eller “Ikke med”.'; status.className = 'status-line err'; return; }
+    if (draft.med && !draft.navn) { status.textContent = 'Giv stedet et navn, før det kommer på kortet.'; status.className = 'status-line err'; $('f-navn')?.focus(); return; }
+    const c = data.candidates.find((x) => x.id === selected);
+    const body = {
+      med: draft.med,
+      status: draft.med ? draft.status : null,
+      start: draft.med ? draft.start : null,
+      navn: draft.med ? draft.navn : (draft.navn || c.navn || ''),
+      note: draft.note,
+      opdateret: new Date().toISOString(),
+    };
+    saving = true;
+    status.textContent = 'Gemmer …';
+    status.className = 'status-line';
+    const next = andNext ? nextId(1) : null;
+    try {
+      const ref = db.doc('beslutninger/' + selected);
+      if (decisions[selected]) await ref.update(body); else await ref.set(body);
+      decisions[selected] = { ...(decisions[selected] || {}), ...body };
+      if (andNext && next) { select(next); } else { render(); renderDetail(); }
+    } catch (err) {
+      const msg = err?.code === 'invalid_argument' ? 'Du har ikke adgang til at gemme på denne side.'
+        : err?.code === 'quota_exceeded' ? 'Databasen er fuld – sig til Claude.'
+        : 'Kunne ikke gemme. Prøv igen om lidt.';
+      const s = $('save-status');
+      if (s) { s.textContent = msg; s.className = 'status-line err'; }
+    } finally {
+      saving = false;
+    }
+  }
+
+  // ---------- Hændelser ----------
+  document.addEventListener('click', (e) => {
+    const t = e.target.closest('[data-id], [data-state], [data-vurd], [data-med], #save-only');
+    if (!t) return;
+    if (t.id === 'save-only') return save(false);
+    if (t.dataset.med) return setMed(t.dataset.med === 'true');
+    if (t.dataset.state) { filter.state = t.dataset.state; return render(); }
+    if (t.dataset.vurd) {
+      const k = t.dataset.vurd;
+      filter.vurd.has(k) ? filter.vurd.delete(k) : filter.vurd.add(k);
+      if (!filter.vurd.size) filter.vurd.add(k);
+      return render();
+    }
+    if (t.dataset.id) select(t.dataset.id, { scroll: true });
+  });
+  document.addEventListener('submit', (e) => { e.preventDefault(); save(true); });
+  document.addEventListener('change', (e) => { if (e.target.name === 'status' || e.target.name === 'start') readForm(); });
+  document.addEventListener('keydown', (e) => {
+    if (!data || !selected || e.metaKey || e.ctrlKey || e.altKey) return;
+    const typing = /^(INPUT|TEXTAREA)$/.test(e.target.tagName) && e.target.type !== 'radio';
+    if (typing) return;
+    const k = e.key.toLowerCase();
+    if (k === 'j') { e.preventDefault(); setMed(true); }
+    else if (k === 'n') { e.preventDefault(); setMed(false); }
+    else if (['1', '2', '3'].includes(k) && draft.med) { readForm(); draft.status = STATUS[+k - 1].v; renderDetail(); }
+    else if (k === 'enter' && e.target.tagName !== 'BUTTON') { e.preventDefault(); save(true); }
+    else if (k === 'arrowdown' || k === 'arrowup') { const n = nextId(k === 'arrowdown' ? 1 : -1); if (n) { e.preventDefault(); select(n); } }
+  });
+
+  function banner(text) { $('banner').textContent = text; $('banner').hidden = !text; }
+
+  // ---------- Start ----------
+  fetch('kandidater.json').then((r) => r.json()).then((d) => {
+    data = d;
+    const p = d.proj.inset;
+    // Rammen om det indsatte kort (Bornholm), beregnet med samme projektion som punkterne.
+    const proj = (lat, lon) => [((lon + p.dLon) - d.proj.lon0) * d.proj.cos * d.proj.k, (d.proj.lat0 - (lat + p.dLat)) * d.proj.k];
+    const [x1, y1] = proj(55.33, 14.62), [x2, y2] = proj(54.96, 15.22);
+    data.inset = { x: x1 - 8, y: y1 - 8, w: x2 - x1 + 16, h: y2 - y1 + 16 };
+    const first = visible()[0] || data.candidates[0];
+    select(first.id);
+  }).catch(() => { $('detail').innerHTML = '<p class="empty">Kunne ikke indlæse kandidaterne.</p>'; });
+
+  const use = window.claude && typeof window.claude.use === 'function' ? window.claude.use('db') : Promise.resolve(null);
+  use.then((d) => {
+    db = d;
+    if (!db) {
+      dbState = 'ingen';
+      banner('Dine valg kan ikke gemmes i denne visning. Åbn siden på claude.ai for at bruge knapperne.');
+      if (data) renderDetail();
+      return;
+    }
+    dbState = 'klar';
+    db.collection('beslutninger').limit(1000).onSnapshot((snap) => {
+      const next = {};
+      snap.docs.forEach((doc) => { next[doc.id] = doc.data(); });
+      decisions = next;
+      if (!data) return;
+      render();
+      const s = $('save-status');
+      if (s && !saving) s.innerHTML = savedText(decisions[selected]);
+    }, () => {
+      dbState = 'ingen';
+      banner('Forbindelsen til dine gemte valg blev afbrudt. Genindlæs siden.');
+      if (data) renderDetail();
+    });
+    if (data) renderDetail();
+  }).catch(() => { dbState = 'ingen'; if (data) renderDetail(); });
+})();
+</script>

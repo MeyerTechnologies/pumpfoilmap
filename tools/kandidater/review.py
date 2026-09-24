@@ -19,13 +19,14 @@ import functools
 import http.server
 import json
 import math
+import os
 import subprocess
 import sys
 import threading
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from kartotek import (ROOT, VURDERINGER, fmt_coords, log, parse_coords, read_catalog, today,  # noqa: E402
+from kartotek import (ROOT, VAND, VURDERINGER, catalog_lock, fmt_coords, log, parse_coords, read_catalog, today,  # noqa: E402
                       write_catalog)
 
 SCREENS = Path(__file__).resolve().parent / ".screens"
@@ -98,20 +99,31 @@ def cmd_render(args, catalog):
     missing = [i for i in args.ids if i not in by_id]
     if missing:
         sys.exit(f"Ukendte id'er: {' '.join(missing)}")
-    SCREENS.mkdir(exist_ok=True)
+    out_dir = SCREENS / "ren" if args.ren else SCREENS
+    out_dir.mkdir(parents=True, exist_ok=True)
     server = serve()
     port = server.server_address[1]
     jobs = []
     for sid in args.ids:
         center = parse_coords(args.c) if args.c else site_center(by_id[sid])
         c = f"{center[0]:.7f},{center[1]:.7f}"
-        jobs.append({"url": f"http://127.0.0.1:{port}/tools/kandidater/review.html?id={sid}&z={args.z}&c={c}",
-                     "out": str(SCREENS / f"{sid}.png")})
-        (SCREENS / f"{sid}.json").write_text(json.dumps({"center": center, "zoom": args.z}))
-    jobs_file = SCREENS / "jobs.json"
+        jobs.append({"url": f"http://127.0.0.1:{port}/tools/kandidater/review.html?id={sid}&z={args.z}&c={c}"
+                            + ("&ren=1" if args.ren else ""),
+                     "out": str(out_dir / f"{sid}.png")})
+        if not args.ren:  # --px regner ud fra det seneste gennemgangsbillede
+            (SCREENS / f"{sid}.json").write_text(json.dumps({"center": center, "zoom": args.z}))
+    jobs_file = SCREENS / f"jobs-{os.getpid()}.json"
     jobs_file.write_text(json.dumps(jobs))
     subprocess.run(["node", str(Path(__file__).resolve().parent / "shoot.mjs"), str(jobs_file)], check=True)
+    jobs_file.unlink(missing_ok=True)
     server.shutdown()
+    if args.ren:  # JPEG, så godkendelsessiden kan hente dem hurtigt
+        for job in jobs:
+            png = Path(job["out"])
+            if png.exists():
+                subprocess.run(["sips", "-s", "format", "jpeg", "-s", "formatOptions", "70", str(png),
+                                "--out", str(png.with_suffix(".jpg"))], capture_output=True)
+                png.unlink()
 
 
 def cmd_sheet(args, catalog):
@@ -124,10 +136,11 @@ def cmd_sheet(args, catalog):
     server = serve()
     port = server.server_address[1]
     out = SCREENS / f"ark-{'-'.join(args.ids)[:120]}.png"
-    jobs_file = SCREENS / "jobs.json"
+    jobs_file = SCREENS / f"jobs-{os.getpid()}.json"
     jobs_file.write_text(json.dumps([{"url": f"http://127.0.0.1:{port}/tools/kandidater/sheet.html?ids={','.join(args.ids)}",
                                       "out": str(out)}]))
     subprocess.run(["node", str(Path(__file__).resolve().parent / "shoot.mjs"), str(jobs_file)], check=True)
+    jobs_file.unlink(missing_ok=True)
     server.shutdown()
 
 
@@ -181,6 +194,8 @@ def apply_decision(catalog, d):
         raise SystemExit(f"Ukendt id: {d['id']}")
     if d.get("vurdering") and d["vurdering"] not in VURDERINGER:
         raise SystemExit(f"{d['id']}: vurdering skal være en af {', '.join(VURDERINGER)}")
+    if d.get("vand") and d["vand"] not in VAND:
+        raise SystemExit(f"{d['id']}: vand skal være en af {', '.join(VAND)}")
     if d.get("type") and d["type"] not in TYPES:
         raise SystemExit(f"{d['id']}: type skal være en af {', '.join(TYPES)}")
     if d.get("px"):
@@ -191,11 +206,13 @@ def apply_decision(catalog, d):
         x, y = d["px"] if isinstance(d["px"], list) else map(float, str(d["px"]).split(","))
         d["koordinater"] = fmt_coords(px_to_coords(view["center"], view["zoom"], float(x), float(y)))
     changes = []
-    for field in ("vurdering", "type", "koordinater", "begrundelse"):
+    for field in ("vurdering", "type", "koordinater", "begrundelse", "vand", "vand_note"):
         if d.get(field) is not None and d[field] != site[field]:
             changes.append((field, site[field], d[field]))
             site[field] = d[field]
-    if changes:
+    if any(f in ("vand", "vand_note") for f, _, _ in changes):
+        site["vand_tjekket"] = today()
+    if any(f not in ("vand", "vand_note") for f, _, _ in changes):
         site["vurderet"] = today()
         for field, old, new in changes:
             log(f"sat {field}", site["id"], old, new, d.get("note", ""))
@@ -233,6 +250,7 @@ def main():
     r.add_argument("ids", nargs="+")
     r.add_argument("--z", type=int, default=18)
     r.add_argument("--c", help="centrér et andet sted: 'lat, lng'")
+    r.add_argument("--ren", action="store_true", help="rent billede til godkendelsessiden (JPEG i .screens/ren/)")
     sh = sub.add_parser("sheet")
     sh.add_argument("ids", nargs="+")
     s = sub.add_parser("set")
@@ -250,6 +268,11 @@ def main():
     a = sub.add_parser("apply")
     a.add_argument("file")
     args = p.parse_args()
+    if args.cmd in ("set", "apply", "promote"):
+        with catalog_lock():
+            catalog = read_catalog()
+            {"set": cmd_set, "apply": cmd_apply, "promote": cmd_promote}[args.cmd](args, catalog)
+        return
     catalog = read_catalog()
     {"next": cmd_next, "status": cmd_status, "render": cmd_render, "sheet": cmd_sheet, "promote": cmd_promote, "set": cmd_set, "apply": cmd_apply}[args.cmd](args, catalog)
 
