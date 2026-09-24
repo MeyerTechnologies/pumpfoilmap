@@ -97,7 +97,7 @@
 
   .detail { display: grid; gap: 16px; min-width: 0; }
   .photo { margin: 0; border-radius: 10px; overflow: hidden; background: var(--sunk); border: 1px solid var(--line); }
-  .photo img { display: block; width: 100%; aspect-ratio: 12 / 7; object-fit: cover; }
+  .photo .shot { width: 100%; aspect-ratio: 12 / 7; background-repeat: no-repeat; background-color: var(--sunk); }
   .photo figcaption { padding: 6px 12px; font-size: 12px; color: var(--muted); }
   .head h2 { margin: 0; font-size: 28px; line-height: 1.1; }
   .head .meta { margin-top: 4px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 14px; }
@@ -295,7 +295,7 @@
     const bv = c.badevand || {};
     const canSave = dbState === 'klar';
     $('detail').innerHTML = `
-      ${c.img ? `<figure class="photo"><img src="${esc(c.img)}" alt="Luftfoto af ${esc(title(c))}: oversigt og nærbillede med den foreslåede startplads markeret" width="1200" height="700">
+      ${c.img ? `<figure class="photo"><div class="shot" role="img" aria-label="Luftfoto af ${esc(title(c))}: oversigt og nærbillede med den foreslåede startplads markeret" style="${shotStyle(c.img)}"></div>
         <figcaption>Venstre: oversigt. Højre: nærbillede ca. 240 m bredt – den røde nål er den foreslåede startplads. Luftfoto: Esri, Maxar, Earthstar Geographics.</figcaption></figure>` : ''}
       <div class="head">
         <h2>${esc(title(c))}</h2>
@@ -353,6 +353,14 @@
         </div>
         <p class="keys"><kbd>J</kbd> med · <kbd>N</kbd> ikke med · <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> status · <kbd>Enter</kbd> gem og næste · <kbd>↓</kbd><kbd>↑</kbd> næste/forrige</p>
       </form>`;
+  }
+
+  // Billederne ligger 20 ad gangen i fællesbilleder (4×5); vis det rigtige udsnit.
+  function shotStyle(img) {
+    const { cols, rows } = data.sprite;
+    const x = cols > 1 ? (img.c / (cols - 1)) * 100 : 0;
+    const y = rows > 1 ? (img.r / (rows - 1)) * 100 : 0;
+    return `background-image:url('${img.s}');background-size:${cols * 100}% ${rows * 100}%;background-position:${x}% ${y}%`;
   }
 
   function savedText(d) {

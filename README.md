@@ -116,13 +116,19 @@ Oversigt på kort: https://meyertechnologies.github.io/pumpfoilmap/kandidater.ht
    kajak-/roklub 4, badebro/vinterbad/havnebad 3, badested 2, almindelig bro/havn/slæbested 1.
 2. **Vurdér** (menneske eller Claude): `review.py render` tager et skærmbillede af hvert sted med luftfoto og
    OSM-omrids. Stedet vurderes, og nålen sættes præcist på broen. Se kriterierne i `CLAUDE.md`.
-3. **Flyt til kortet**: `review.py promote ID --navn "…"` tilføjer stedet som et gult "Ikke testet"-spot.
+3. **Vand og regler**: `vand.py` kobler EU's officielle badevandsdata på hvert sted (klassifikation fra kommunernes
+   målinger) og kendte forhold fra `data/badevand/kendte-forhold*.csv`, fx badeforbud, alger og vildtreservater.
+   Steder uden officielt badevand undersøges manuelt (kommunens side, havnens regler …), og kilden noteres.
+4. **Godkend på kandidatkortet**: en side på claude.ai (kun for dig), hvor du for hvert sted vælger *Med på kortet*
+   eller *Ikke med* samt status (Virker / Ikke testet / Virker ikke) og starttype. Sig "synk kandidatkortet" til
+   Claude, så kommer de valgte steder på web-kortet og i My Maps-filen.
 
 **Kartoteket** er `data/kandidater.csv`, med ét sted pr. række:
 
 | Kolonne | Indhold |
 |---|---|
 | `vurdering` | `lovende`, `måske`, `nej`, `på kortet` eller tom (ikke vurderet endnu) |
+| `vand`, `vand_note`, `badevand` | Vandkvalitet og regler: `ok`, `tvivl`, `nej` eller `ukendt`, med noter og kilder |
 | `type` | flydebro, ponton, badebro, bro, slæbested, strand, andet |
 | `koordinater` | Præcis placering sat ved vurderingen (fx broens yderste ende) |
 | `begrundelse` | Hvorfor stedet er vurderet sådan. Står der "nej", kan man se hvorfor senere |

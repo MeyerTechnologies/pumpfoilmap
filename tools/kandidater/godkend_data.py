@@ -3,13 +3,15 @@
 
     python3 tools/kandidater/godkend_data.py
 
-Resultat i tools/kandidater/.godkend/ (ikke i git): kandidater.json og img/<id>.jpg.
-Billederne kommer fra `review.py render --ren`. Siden publiceres som Artifact på claude.ai,
+Resultat i tools/kandidater/.godkend/ (ikke i git): kandidater.json og s/NN.jpg.
+Billederne kommer fra `review.py render --ren` og samles 20 ad gangen i fællesbilleder (sprites,
+4×5 à 960×560) med ImageMagick, så siden holder sig under grænsen på 255 filer pr. version. Siden publiceres som Artifact på claude.ai,
 og Go/No Go gemmes i dens database (samlingen 'beslutninger'). Se sync_beslutninger.py.
 """
 import json
 import math
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -24,6 +26,7 @@ OUTLINE = HERE / "danmark.json"  # Danmarks omrids (Natural Earth 10m, public do
 # Projektion til oversigtskortet: simpel lat/lon med cos(56°), Bornholm flyttet op i Kattegat som indsat kort.
 PROJ = {"lon0": 7.95, "lat0": 57.85, "k": 200, "cos": math.cos(math.radians(56)),
         "inset": {"lonMin": 14.4, "dLon": -2.35, "dLat": 1.95}}
+SPRITE = {"cols": 4, "rows": 5, "w": 960, "h": 560}
 START = {"flydebro": "Dock", "ponton": "Dock", "badebro": "Dock", "bro": "Dock", "slæbested": "Andet", "strand": "Beach"}
 
 
@@ -59,7 +62,9 @@ def split_badevand(text):
 
 def main():
     OUT.mkdir(exist_ok=True)
-    (OUT / "img").mkdir(exist_ok=True)
+    shutil.rmtree(OUT / "img", ignore_errors=True)
+    shutil.rmtree(OUT / "s", ignore_errors=True)
+    (OUT / "s").mkdir()
     rows = [r for r in read_catalog() if r["vurdering"] in ("lovende", "måske", "nej") and r["osm_status"] != "forsvundet"]
     order = {"lovende": 0, "måske": 1, "nej": 2}
     rows.sort(key=lambda r: (order[r["vurdering"]], -float(r["score"] or 0), r["id"]))
@@ -67,9 +72,7 @@ def main():
     for r in rows:
         pos = parse_coords(r["koordinater"]) or parse_coords(r["auto_koordinater"])
         img = REN / f"{r['id']}.jpg"
-        if img.exists():
-            shutil.copyfile(img, OUT / "img" / img.name)
-        else:
+        if not img.exists():
             missing.append(r["id"])
         x, y = project(*pos)
         candidates.append({
@@ -77,16 +80,30 @@ def main():
             "type": r["type"], "begrundelse": r["begrundelse"], "pos": [round(pos[0], 7), round(pos[1], 7)],
             "xy": [x, y], "kategorier": r["kategorier"], "vurderet": r["vurderet"],
             "vand": r["vand"], "vandNote": r["vand_note"], "badevand": split_badevand(r["badevand"]),
-            "start": START.get(r["type"], "Dock"), "img": f"img/{r['id']}.jpg" if img.exists() else "",
+            "start": START.get(r["type"], "Dock"), "img": str(img) if img.exists() else "",
             "osm": (r["osm"] or "").split(" ")[0],
         })
+    # Fællesbilleder: 20 billeder pr. fil i kandidaternes rækkefølge.
+    per = SPRITE["cols"] * SPRITE["rows"]
+    with_img = [c for c in candidates if c["img"]]
+    for n in range(0, len(with_img), per):
+        group = with_img[n:n + per]
+        name = f"s/{n // per:03d}.jpg"
+        subprocess.run(["magick", "montage", *[c["img"] for c in group], "-tile", f"{SPRITE['cols']}x{SPRITE['rows']}",
+                        "-geometry", f"{SPRITE['w']}x{SPRITE['h']}+0+0", "-background", "#1b2a2e",
+                        "-quality", "68", str(OUT / name)], check=True)
+        for i, c in enumerate(group):
+            c["img"] = {"s": name, "c": i % SPRITE["cols"], "r": i // SPRITE["cols"]}
+    for c in candidates:
+        if isinstance(c["img"], str):
+            c["img"] = None
+
     spots = []
     for s in read_csv(SPOTS_CSV):
         pos = parse_coords(s.get("koordinater"))
         if pos:
             spots.append({"xy": list(project(*pos)), "status": s.get("status", "")})
-    xs = [x for c in candidates for x in [c["xy"][0]]]
-    data = {"proj": PROJ, "outline": outline_path(), "candidates": candidates, "spots": spots}
+    data = {"proj": PROJ, "sprite": SPRITE, "outline": outline_path(), "candidates": candidates, "spots": spots}
     (OUT / "kandidater.json").write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     print(f"{len(candidates)} kandidater, {len(spots)} spots → {OUT.relative_to(ROOT)}"
           + (f" · {len(missing)} mangler billede (kør review.py render --ren): {' '.join(missing[:8])}" if missing else ""))
