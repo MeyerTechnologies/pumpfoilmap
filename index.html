@@ -110,6 +110,23 @@
   .empty { color: var(--muted); font-style: italic; }
   .meta { margin-top: 16px; padding-top: 10px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
 
+  /* Indmelding fra kortet ("Har du været her?") – sendes til Google Formen. */
+  .report { margin: 0 0 14px; padding: 12px 14px; border-radius: 10px; background: #fff8d6; border: 1px solid #f0d860; }
+  .report.quiet { background: var(--soft); border-color: var(--line); }
+  .report h3 { margin: 0 0 2px; font-size: 16px; }
+  .report p { margin: 0 0 10px; color: var(--muted); font-size: 14px; }
+  .choices { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .choices button { padding: 10px 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); font: inherit; font-weight: 600; cursor: pointer; color: var(--fg); }
+  .choices button[aria-pressed="true"] { border-color: var(--fg); box-shadow: inset 0 0 0 1px var(--fg); }
+  .report form { display: grid; gap: 8px; margin-top: 10px; }
+  .report form[hidden] { display: none; }
+  .report textarea, .report input { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; font: inherit; background: var(--bg); color: var(--fg); }
+  .report textarea { min-height: 70px; resize: vertical; }
+  .report .hp { position: absolute; left: -9999px; }
+  .report .send { justify-self: start; }
+  .report .done { margin: 0; color: var(--fg); font-weight: 600; }
+  .report .err { color: #b3261e; font-size: 14px; }
+
   .toast {
     position: absolute; z-index: 1100; left: 50%; bottom: 24px; transform: translateX(-50%);
     padding: 10px 16px; border-radius: 999px; background: var(--fg); color: #fff; font-size: 14px; box-shadow: var(--shadow);
@@ -163,6 +180,7 @@
 const CONFIG = {
   sheet_csv_url: '',
   form_url: 'https://forms.gle/9QVyi6BKm4FHChJ29',
+  feedback_form: null, // felter i Google Formen, sat i config.json
   my_maps_url: '',
   fallback_csv: 'data/spots.csv',
   center: [56.0, 10.6],
@@ -412,14 +430,17 @@ function openPanel(spot) {
       <div class="actions">
         <a class="btn" href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}" target="_blank" rel="noopener">Rutevejledning</a>
         <button class="btn" id="share">Del link</button>
-        <a class="btn" href="${esc(CONFIG.form_url)}" target="_blank" rel="noopener">Foreslå ændring</a>
+        ${spot.status === 'ikke_testet' ? '' : '<button class="btn" id="suggest">Foreslå ændring</button>'}
       </div>
+      <div id="report-slot">${spot.status === 'ikke_testet' ? reportBox(spot, true) : ''}</div>
       ${spot.media.length ? `<div class="media-row">${spot.media.map(mediaItem).join('')}</div>` : ''}
       <div class="desc">${renderDescription(spot.description)}</div>
       <div class="meta">${lat.toFixed(5)}, ${lng.toFixed(5)}${spot.updated ? ` · Opdateret ${esc(spot.updated)}` : ''}</div>
     </div>`;
   $('panel').hidden = false;
   $('close').onclick = () => select(null);
+  const suggest = $('suggest');
+  if (suggest) suggest.onclick = () => { $('report-slot').innerHTML = reportBox(spot, false); suggest.remove(); $('report-note')?.focus(); };
   $('share').onclick = async () => {
     const url = location.href;
     try {
@@ -428,6 +449,86 @@ function openPanel(spot) {
     } catch {}
   };
 }
+
+// ---------- Indmelding ----------
+const REPORT_CHOICES = [
+  { key: 'virker', label: '✅ Det virker', text: 'Virker – prøvet på stedet' },
+  { key: 'virker_ikke', label: '⛔ Virker ikke', text: 'Virker ikke' },
+  { key: 'andet', label: '💬 Andet', text: 'Andet input' },
+];
+
+function reportBox(spot, prominent) {
+  return `<section class="report${prominent ? '' : ' quiet'}" data-spot="${esc(spot.id)}">
+    <h3>${prominent ? 'Har du været her?' : 'Foreslå en ændring'}</h3>
+    <p>${prominent ? 'Spottet er ikke testet endnu. Fortæl os, om det virker – det tager 20 sekunder.' : 'Er noget forkert eller ændret? Skriv det her.'}</p>
+    ${prominent ? `<div class="choices" role="group" aria-label="Virker spottet?">${REPORT_CHOICES.map((c) =>
+      `<button type="button" data-choice="${c.key}" aria-pressed="false">${c.label}</button>`).join('')}</div>` : ''}
+    <form ${prominent ? 'hidden' : ''} novalidate>
+      <label class="hp" aria-hidden="true">Lad feltet være tomt <input name="website" tabindex="-1" autocomplete="off"></label>
+      <textarea id="report-note" placeholder="${prominent ? 'Fx broens højde, dybde, tang, parkering, regler … (valgfrit)' : 'Hvad skal rettes?'}"></textarea>
+      <input id="report-name" placeholder="Dit navn eller kontakt (valgfrit – kun til os)" autocomplete="name">
+      <button type="submit" class="btn primary send">Send</button>
+      <span class="err" hidden></span>
+    </form>
+  </section>`;
+}
+
+function formUrl(fields, submit) {
+  const f = CONFIG.feedback_form;
+  const params = new URLSearchParams({ [f.spot]: fields.spot, [f.type]: f.type_value, [f.beskrivelse]: fields.text, [f.kontakt]: fields.name });
+  if (!submit) return f.action.replace(/formResponse$/, 'viewform') + '?usp=pp_url&' + params;
+  // Samme ekstra felter som Google Formens egen side sender ved indsendelse.
+  params.set(`${f.type}_sentinel`, '');
+  params.set('fvv', '1');
+  params.set('pageHistory', '0');
+  return [f.action, params];
+}
+
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('.report [data-choice]');
+  if (!btn) return;
+  const box = btn.closest('.report');
+  box.querySelectorAll('[data-choice]').forEach((b) => b.setAttribute('aria-pressed', String(b === btn)));
+  box.dataset.choice = btn.dataset.choice;
+  box.querySelector('form').hidden = false;
+  box.querySelector('textarea').focus();
+});
+
+document.addEventListener('submit', async (e) => {
+  const form = e.target.closest('.report form');
+  if (!form) return;
+  e.preventDefault();
+  const box = form.closest('.report');
+  const spot = spots.find((s) => s.id === box.dataset.spot);
+  const err = form.querySelector('.err');
+  const note = form.querySelector('textarea').value.trim();
+  const choice = REPORT_CHOICES.find((c) => c.key === box.dataset.choice);
+  if (!choice && !note) { err.textContent = 'Vælg et svar eller skriv en kommentar.'; err.hidden = false; return; }
+  if (form.website.value) return; // spam-fælde
+  const fields = {
+    spot: `${spot.name} [${spot.id}]`,
+    text: [`Indmeldt fra kortet: ${choice ? choice.text : 'Forslag til ændring'}`, note,
+      `${location.origin}${location.pathname}#${spot.id}`].filter(Boolean).join('\n\n'),
+    name: form.querySelector('#report-name').value.trim(),
+  };
+  const send = form.querySelector('.send');
+  send.disabled = true;
+  send.textContent = 'Sender …';
+  try {
+    if (!CONFIG.feedback_form) throw new Error('ingen formular');
+    const [action, body] = formUrl(fields, true);
+    // Google Forms svarer uden CORS-headere; med no-cors kan svaret ikke læses, men indsendelsen går igennem.
+    await fetch(action, { method: 'POST', mode: 'no-cors', body });
+    box.innerHTML = '<p class="done">Tak! Dit input er sendt til kortets redaktør.</p>';
+  } catch {
+    send.disabled = false;
+    send.textContent = 'Send';
+    err.innerHTML = CONFIG.feedback_form
+      ? `Kunne ikke sende. <a href="${esc(formUrl(fields, false))}" target="_blank" rel="noopener">Åbn formularen i stedet</a>.`
+      : `Kunne ikke sende. <a href="${esc(CONFIG.form_url)}" target="_blank" rel="noopener">Brug formularen i stedet</a>.`;
+    err.hidden = false;
+  }
+});
 
 function select(id, { fly = false } = {}) {
   const prev = spots.find((s) => s.id === selectedId);

@@ -1,5 +1,13 @@
 {
   "sheet_csv_url": "",
   "form_url": "https://forms.gle/9QVyi6BKm4FHChJ29",
-  "my_maps_url": "https://www.google.com/maps/d/viewer?mid=1U1NN1-zMIxBiIgGSJ61EfSRSQt8KqSg"
+  "my_maps_url": "https://www.google.com/maps/d/viewer?mid=1U1NN1-zMIxBiIgGSJ61EfSRSQt8KqSg",
+  "feedback_form": {
+    "action": "https://docs.google.com/forms/d/e/1FAIpQLScmuUv36_TsIIX5chlaEhPAWQT0iLVaFKqrLLmlstH2I0cj2A/formResponse",
+    "spot": "entry.1647112513",
+    "type": "entry.1214636457",
+    "type_value": "Ændring til eksisterende spot",
+    "beskrivelse": "entry.724225437",
+    "kontakt": "entry.1830790646"
+  }
 }

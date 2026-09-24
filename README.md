@@ -19,6 +19,12 @@ rækkefølgen i My Maps laves automatisk ud fra kolonnerne `status` og `start`.
 (der er et link i mailen), ret hvad der skal rettes, og sæt flueben i `vis`. Web-kortet viser spottet
 inden for ca. 5 minutter. Så længe det tager Google at opdatere et udgivet ark.
 
+**Indmeldinger fra kortet:** Klikker man på et gult spot (ikke testet) på web-kortet, står der "Har du været her?"
+med knapperne *Det virker / Virker ikke / Andet* og et felt til kommentar. Andre spots har knappen *Foreslå ændring*.
+Indmeldingen sendes direkte til Google Formen som "Ændring til eksisterende spot" med spottets id i klammer,
+fx `Fussing Sø [fussing-soe]`, så formular-scriptet finder den rigtige række. Feltnumrene står i
+`config.json` → `feedback_form`. Ændrer du spørgsmålene i formularen, skal numrene opdateres.
+
 **Ændringsforslag:** Du får en mail, og spottets række bliver orange med forslaget som note på navnet.
 Hold musen over navnet for at se forslaget. Ret cellerne, og fjern den orange farve.
 

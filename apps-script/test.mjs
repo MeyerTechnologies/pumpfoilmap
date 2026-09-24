@@ -183,4 +183,18 @@ test('ændringsforslag → note + orange række, ingen ny række', () => {
   assert.match(mails[0].subject, /Ændringsforslag/);
 });
 
+test('indmelding fra kortet finder spottet via id i klammer', () => {
+  const sheet = fakeSheet([HEADERS,
+    ['tange-soebad', true, 'Tange Søbad', 'Virker ikke', 'Dock', '56.33, 9.57'],
+    ['fussing-soe', true, 'Fussing Sø', 'Ikke testet', 'Dock', '56.47, 9.84']]);
+  const { ctx, mails } = load({ sheet });
+  const row = ctx.handleFormSubmit({ namedValues: nv({
+    'Spot': 'Fussing Sø [fussing-soe]', 'Hvilken slags opdatering er der tale om': 'Ændring til eksisterende spot',
+    'Beskrivelse': 'Indmeldt fra kortet: Virker – prøvet på stedet\n\nLav bro, 2 m dybt', 'Navn eller kontaktinfo': '',
+  }) });
+  assert.equal(row, 3);
+  assert.match(sheet.notes['3,3'], /Virker – prøvet på stedet/);
+  assert.match(mails[0].subject, /Fussing Sø \[fussing-soe\]/);
+});
+
 console.log(`\n${passed} tests bestået`);

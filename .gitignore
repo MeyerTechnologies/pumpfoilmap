@@ -5,3 +5,4 @@ data/osm/raw.json
 tools/kandidater/.screens/
 tools/kandidater/.godkend/
 data/.kandidater.lock
+tools/kandidater/.cache/

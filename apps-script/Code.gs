@@ -346,6 +346,14 @@ function findSpotRow_(sheet, navn) {
   const cols = columns_(sheet);
   const rows = sheet.getLastRow() - 1;
   if (!navn || rows < 1) return null;
+  // Indmeldinger fra kortet har spottets id i klammer: "Fussing Sø [fussing-soe]".
+  const idMatch = String(navn).match(/\[([a-z0-9-]+)\]\s*$/);
+  if (idMatch) {
+    const ids = sheet.getRange(2, cols.id, rows, 1).getValues().map(([v]) => String(v).trim());
+    const j = ids.indexOf(idMatch[1]);
+    if (j >= 0) return j + 2;
+    navn = String(navn).replace(/\s*\[[^\]]*\]\s*$/, '');
+  }
   const names = sheet.getRange(2, cols.navn, rows, 1).getValues().map(([v]) => slug_(v));
   const wanted = slug_(navn);
   let i = names.indexOf(wanted);

@@ -54,8 +54,14 @@ Kandidatkortet (Go/No Go): https://claude.ai/artifact/D4oL7sFwiQtnfVF2qqrfmf (pr
 - Opdatér siden: `review.py render --ren ID …` for nyvurderede steder → `python3 tools/kandidater/godkend_data.py`
   → publicér `tools/kandidater/godkend.html` med Artifact-værktøjet til samme URL med
   `files`: `kandidater.json` + `s/NNN.jpg` fra `tools/kandidater/.godkend/` (fællesbilleder, 20 pr. fil).
+- Nye spots fra kandidatkortet får en beskrivelse med overskrifterne Navn på Lokation, Adresse (Nominatim, uden
+  personlige oplysninger i User-Agent), Beskrivelse af …, Vandkvalitet, Lokale Regler og Restriktioner og Andre
+  Bemærkninger (se `description()` i sync_beslutninger.py).
 - "Synk kandidatkortet" betyder: ArtifactData `list` af samlingen `beslutninger` med `out_dir` → 
   `python3 tools/kandidater/sync_beslutninger.py MAPPE` (Med → nyt spot i data/spots.csv med den valgte status,
   Ikke med → vurdering "nej") → ArtifactData `batch` med `MAPPE/synk.json` (så siden viser "Lagt på kortet")
   → `python3 tools/build_mymaps_kml.py` → commit og push. Fortæl hvilke spots der kom på kortet.
 - Promote til kortet (`review.py promote`) kun når brugeren beder om det. Normalt går det via kandidatkortet.
+
+Web-kortets indmeldingsknap sender til Google Formen (`config.json` → `feedback_form`, feltnumre fra formularens
+HTML: `FB_PUBLIC_LOAD_DATA_`). Send aldrig testindmeldinger uden at spørge ejeren – de lander i hans formularsvar.
