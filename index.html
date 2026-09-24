@@ -243,7 +243,7 @@ async function loadRows() {
       toast('Kunne ikke hente de nyeste data — viser en gemt kopi.');
     }
   }
-  const res = await fetch(CONFIG.fallback_csv);
+  const res = await fetch(CONFIG.fallback_csv, { cache: 'no-cache' });
   return parse(await res.text());
 }
 
