@@ -1,3 +1,5 @@
 .DS_Store
 __pycache__/
 .claude/settings.local.json
+data/osm/raw.json
+tools/kandidater/.screens/

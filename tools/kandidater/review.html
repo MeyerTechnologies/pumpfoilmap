@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<title>Kandidat-gennemgang</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  /* Fast layout på 1200×700, så review.py kan omregne pixels i skærmbilledet til koordinater. */
+  html, body { margin: 0; width: 1200px; height: 700px; overflow: hidden; font: 12px/1.35 system-ui, sans-serif; background: #111; }
+  #ctx { position: absolute; left: 0; top: 0; width: 400px; height: 700px; }
+  #detail { position: absolute; left: 400px; top: 0; width: 800px; height: 700px; }
+  .leaflet-control-attribution { font-size: 9px; }
+  #info {
+    position: absolute; z-index: 1000; left: 8px; bottom: 8px; width: 384px; max-height: 330px; overflow: hidden;
+    padding: 8px 10px; border-radius: 8px; background: rgba(255,255,255,.93); color: #111;
+  }
+  #info h1 { margin: 0 0 2px; font-size: 14px; }
+  #info .muted { color: #555; }
+  #info ul { margin: 4px 0 0; padding-left: 16px; }
+  .grid { position: absolute; z-index: 900; pointer-events: none; background: rgba(255,255,255,.35); }
+  .grid.v { top: 0; width: 1px; height: 700px; }
+  .grid.h { left: 400px; height: 1px; width: 800px; }
+  .lbl { position: absolute; z-index: 901; font: 10px/1 ui-monospace, monospace; color: #fff; text-shadow: 0 0 2px #000, 0 0 2px #000; pointer-events: none; }
+  .cross { position: absolute; z-index: 902; left: 795px; top: 345px; width: 10px; height: 10px; pointer-events: none; }
+  .cross::before, .cross::after { content: ""; position: absolute; background: #ff0; }
+  .cross::before { left: 4px; top: 0; width: 2px; height: 10px; }
+  .cross::after { top: 4px; left: 0; height: 2px; width: 10px; }
+  .spot span { display: block; width: 14px; height: 14px; border-radius: 50%; border: 2px solid #fff; background: var(--c); box-shadow: 0 0 3px #000; }
+  .tag { background: rgba(0,0,0,.65); color: #fff; border: 0; box-shadow: none; font-size: 10px; padding: 1px 4px; }
+  .tag::before { display: none; }
+</style>
+</head>
+<body>
+<div id="ctx"></div>
+<div id="detail"></div>
+<div id="info">Indlæser …</div>
+<div class="cross"></div>
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+const ROOT = '../../';
+const esri = () => L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+  maxZoom: 20, maxNativeZoom: 19, attribution: 'Esri, Maxar, Earthstar Geographics · OSM-bidragydere',
+});
+const coords = (s) => { const m = String(s || '').match(/-?\d+\.\d+/g); return m && m.length >= 2 ? [+m[0], +m[1]] : null; };
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const STATUS_COLOR = { virker: '#0f9d58', ikke: '#ffd600', 'virker ikke': '#a52714' };
+
+// Rutenet med absolutte pixelkoordinater (samme som i skærmbilledet).
+for (let x = 500; x < 1200; x += 100) {
+  document.body.insertAdjacentHTML('beforeend', `<div class="grid v" style="left:${x}px"></div><div class="lbl" style="left:${x + 2}px;top:2px">${x}</div>`);
+}
+for (let y = 100; y < 700; y += 100) {
+  document.body.insertAdjacentHTML('beforeend', `<div class="grid h" style="top:${y}px"></div><div class="lbl" style="left:403px;top:${y + 2}px">${y}</div>`);
+}
+
+async function load() {
+  const [catText, geo, spotText] = await Promise.all([
+    fetch(ROOT + 'data/kandidater.csv', { cache: 'no-cache' }).then((r) => r.text()),
+    fetch(ROOT + 'data/kandidater-geo.json', { cache: 'no-cache' }).then((r) => r.json()),
+    fetch(ROOT + 'data/spots.csv', { cache: 'no-cache' }).then((r) => r.text()),
+  ]);
+  const catalog = Papa.parse(catText, { header: true, skipEmptyLines: true }).data;
+  const spots = Papa.parse(spotText, { header: true, skipEmptyLines: true }).data;
+  const site = catalog.find((s) => s.id === params.get('id'));
+  if (!site) { document.getElementById('info').textContent = 'Ukendt id: ' + params.get('id'); return; }
+
+  const center = coords(params.get('c')) || coords(site.koordinater) || coords(site.auto_koordinater);
+  const zoom = Number(params.get('z') || 18);
+  const ctx = L.map('ctx', { zoomControl: false, attributionControl: false, fadeAnimation: false }).setView(center, zoom - 3);
+  const detail = L.map('detail', { zoomControl: false, fadeAnimation: false, zoomAnimation: false }).setView(center, zoom);
+  // window.__ready = true når begge kort har indlæst alle fliser (bruges af shoot.mjs).
+  const layers = [esri().addTo(ctx), esri().addTo(detail)];
+  Promise.all(layers.map((l) => new Promise((r) => { l.once('load', r); setTimeout(r, 20000); })))
+    .then(() => { window.__ready = true; });
+  L.control.scale({ imperial: false, position: 'bottomright' }).addTo(detail);
+  L.rectangle(detail.getBounds(), { color: '#ff0', weight: 1, fill: false }).addTo(ctx);
+
+  for (const s of spots) {
+    const p = coords(s.koordinater);
+    if (!p) continue;
+    const st = String(s.status).toLowerCase();
+    const color = st.includes('ikke test') ? STATUS_COLOR.ikke : st.includes('ikke') ? STATUS_COLOR['virker ikke'] : STATUS_COLOR.virker;
+    const icon = L.divIcon({ className: 'spot', html: `<span style="--c:${color}"></span>`, iconSize: [18, 18], iconAnchor: [9, 9] });
+    L.marker(p, { icon }).addTo(ctx);
+    L.marker(p, { icon }).bindTooltip('spot: ' + s.navn, { permanent: true, className: 'tag', direction: 'right' }).addTo(detail);
+  }
+
+  // OSM-objekterne: tynde stiplede linjer, så selve broen stadig kan ses på billedet.
+  const objs = geo[site.id] || [];
+  for (const o of objs) {
+    const color = o.cats.includes('flydebro') ? '#0ff' : o.cats.includes('bro') ? '#f0f' : '#ff9800';
+    const label = [o.tags.name, o.cats.join('/'), o.length ? `${o.length} m` : ''].filter(Boolean).join(' · ');
+    if (o.geom && o.geom.length > 1) {
+      const closed = o.geom.length > 3 && o.geom[0][0] === o.geom.at(-1)[0] && o.geom[0][1] === o.geom.at(-1)[1];
+      const style = { color, weight: 1.5, opacity: 0.85, dashArray: '4 4', fill: false };
+      (closed ? L.polygon(o.geom, style) : L.polyline(o.geom, style)).addTo(detail);
+      L.polyline(o.geom, { color, weight: 2 }).addTo(ctx);
+    } else {
+      L.circleMarker(o.pt, { radius: 4, color, weight: 1.5, fill: false }).addTo(detail);
+    }
+    if (o.tags.name || !o.cats.every((c) => c === 'bro')) {
+      L.tooltip({ permanent: true, className: 'tag', direction: 'top', offset: [0, -4] }).setLatLng(o.pt).setContent(esc(label)).addTo(detail);
+    }
+  }
+
+  document.getElementById('info').innerHTML = `
+    <h1>${esc(site.navn || '(uden navn)')} <span class="muted">· ${esc(site.område)}</span></h1>
+    <div><b>${esc(site.id)}</b> · score ${esc(site.score)} · ${esc(site.kategorier)}</div>
+    <div class="muted">${center.map((v) => v.toFixed(6)).join(', ')} · zoom ${zoom}${site.tæt_på_spot ? ' · tæt på spot: ' + esc(site.tæt_på_spot) : ''}</div>
+    <ul>${objs.slice(0, 9).map((o) => `<li>${esc(o.ref)}: ${esc(o.cats.join('/'))}${o.length ? ' ' + o.length + ' m' : ''}${o.tags.floating ? ' · floating=' + esc(o.tags.floating) : ''}${o.tags.name ? ' · ' + esc(o.tags.name) : ''}${o.tags.sport ? ' · sport=' + esc(o.tags.sport) : ''}</li>`).join('')}${objs.length > 9 ? `<li>… ${objs.length - 9} mere</li>` : ''}</ul>`;
+}
+load().catch((err) => { document.getElementById('info').textContent = 'Fejl: ' + err; });
+</script>
+</body>
+</html>

@@ -14,3 +14,30 @@ Kort over pumpfoil-spots i Danmark. Brugeren skriver dansk. Svar på dansk.
 - Apps Script-tests: `node apps-script/test.mjs`.
 - Billeder hostet i My Maps (`mymaps.usercontent.google.com`) kan ikke vises på andre sider (CORP), så
   web-kortet viser dem som links.
+
+## Kandidat-kartoteket (tools/kandidater/)
+
+"Fortsæt gennemgangen af kandidater" betyder:
+1. `python3 tools/kandidater/review.py status`, derefter `next --min-score 2 -n 40` (evt. `--bbox syd,vest,nord,øst`
+   for én landsdel ad gangen). Tag de højeste scorer først. Score 1–1,5 (en enkelt bro uden andre OSM-tags,
+   typisk private broer) kommer til sidst.
+2. `review.py render ID …`, 8–10 ad gangen. Se på hvert billede med Read. Højre halvdel er nærbilledet i
+   zoom 18 med et pixel-rutenet (hver streg = 100 px ≈ 30 m). Stiplede linjer er OSM: magenta = bro,
+   cyan = flydebro, orange = andet.
+   Steder uden bro (kun `badested`) kan tjekkes 6 ad gangen med `review.py sheet ID …`.
+3. Skriv en JSONL-fil med én linje pr. sted: `{"id", "vurdering", "type", "px": [x, y], "begrundelse"}` og kør
+   `review.py apply fil.jsonl`. `px` er broens/pontonens yderste ende i skærmbilledet og bliver til
+   koordinater. Udelad `px` ved "nej".
+4. Commit `data/kandidater.csv` og `data/kandidater-log.csv` løbende.
+
+Kriterier (luftfotoet viser ikke broens højde, så vær ærlig om det i begrundelsen):
+- **lovende**: bro, flydebro eller ponton ud til mørkt (dybt) vand. Mindst ca. 50×50 m frit vand, roligt
+  (sø, beskyttet bassin eller læ) og offentlig adgang (badested, klub, park).
+- **måske**: noget væsentligt er uklart eller trækker ned, fx lavt vand eller ålegræs, åben kyst med bølger,
+  strøm, bådtrafik, mulig privat adgang, eller et gammelt eller vinterbillede.
+- **nej**: ingen bro, tæt pakket lystbådehavn, smal å eller kanal (under ca. 50 m) med strøm, færgeleje,
+  privat eller for lille, eller fejl i OSM-søgningen (padel, vejnavne, ruter …). Skriv altid hvorfor.
+- Gudenåen har strøm og kanotrafik: kun "måske", hvis den er bred (over ca. 80 m).
+- Rettes et søgefilter i `find.py`, så kør `find.py` igen. Vurderinger bevares.
+
+Promote til kortet (`review.py promote`) kun når brugeren beder om det.

@@ -104,6 +104,38 @@ Laget skal være oprettet ved import, før **Genimporter og flet** virker. Test 
    omdøb det nye til "Pumpfoil". Kortets link er det samme, så Google Sites og delte links virker stadig.
 3. Slet først det gamle lag, når billederne er flyttet ud af My Maps (se nedenfor), og alt ser rigtigt ud.
 
+## Kandidat-kartotek: nye steder fra OpenStreetMap
+
+Et system der finder potentielle pumpfoil-steder og husker alt, hvad der er overvejet, også det der er afvist.
+Oversigt på kort: https://meyertechnologies.github.io/pumpfoilmap/kandidater.html
+
+1. **Find** (kode): `python3 tools/kandidater/find.py --hent` henter alle broer, flydebroer, badesteder, havnebade,
+   vinterbadeklubber, kajak-, kano- og roklubber, marinaer og slæbesteder i Danmark fra OpenStreetMap.
+   Objekter inden for 120 m af hinanden samles til ét *sted*. Et sted inden for 250 m af et eksisterende spot
+   markeres "på kortet". Hvert sted får en score efter, hvor lovende det ser ud på papiret: flydebro 5,
+   kajak-/roklub 4, badebro/vinterbad/havnebad 3, badested 2, almindelig bro/havn/slæbested 1.
+2. **Vurdér** (menneske eller Claude): `review.py render` tager et skærmbillede af hvert sted med luftfoto og
+   OSM-omrids. Stedet vurderes, og nålen sættes præcist på broen. Se kriterierne i `CLAUDE.md`.
+3. **Flyt til kortet**: `review.py promote ID --navn "…"` tilføjer stedet som et gult "Ikke testet"-spot.
+
+**Kartoteket** er `data/kandidater.csv`, med ét sted pr. række:
+
+| Kolonne | Indhold |
+|---|---|
+| `vurdering` | `lovende`, `måske`, `nej`, `på kortet` eller tom (ikke vurderet endnu) |
+| `type` | flydebro, ponton, badebro, bro, slæbested, strand, andet |
+| `koordinater` | Præcis placering sat ved vurderingen (fx broens yderste ende) |
+| `begrundelse` | Hvorfor stedet er vurderet sådan. Står der "nej", kan man se hvorfor senere |
+| `kategorier`, `score`, `osm` | Hvad OSM ved om stedet |
+| `auto_koordinater` | Stedets midtpunkt ifølge OSM. Bruges til at genkende stedet ved næste kørsel |
+| `osm_status` | `forsvundet` = findes ikke længere i søgningen (slettet i OSM eller sorteret fra) |
+
+Intet slettes. En ny kørsel af `find.py` beholder alle vurderinger og tilføjer kun nye steder.
+**Loggen** `data/kandidater-log.csv` har én linje pr. kørsel og pr. ændring (tidspunkt, sted, fra → til).
+
+`data/osm/raw.json` (OSM-rådata) og `tools/kandidater/.screens/` (skærmbilleder) er ikke med i git.
+Skærmbillederne kræver Google Chrome og Node.
+
 ## Billeder
 De eksisterende billeder ligger i My Maps. Google tillader ikke, at de vises på andre sider, så web-kortet
 viser dem som et link. På sigt bør de flyttes til mappen `media/` i dette repo, som komprimerede JPEG'er,
@@ -121,5 +153,8 @@ og linkes derfra. Så virker de begge steder og er ikke afhængige af det gamle 
 | `tools/build_mymaps_kml.py` | Bygger KML-filen. Kun Python, ingen pakker. |
 | `tools/kml_to_csv.py` | Engangskonvertering af en My Maps-eksport til `spots.csv`. |
 | `apps-script/Code.gs` | Formular-scriptet. `node apps-script/test.mjs` tester det lokalt. |
+| `kandidater.html` | Kort over kandidat-kartoteket. |
+| `data/kandidater.csv`, `data/kandidater-log.csv` | Kandidat-kartoteket og loggen over alle ændringer. |
+| `tools/kandidater/` | `find.py` (find steder i OSM), `review.py` (skærmbilleder, vurdering, promote). |
 
 Lokal forhåndsvisning: `python3 -m http.server` og åbn http://localhost:8000.

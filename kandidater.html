@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kandidat-kartotek</title>
+<meta name="description" content="Potentielle pumpfoil-steder fundet i OpenStreetMap og vurderet på luftfoto.">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  :root {
+    --bg: #ffffff; --fg: #14212b; --muted: #5b6b77; --line: #e3e8ec; --soft: #f3f6f8;
+    --lovende: #1a73e8; --maybe: #f29900; --nej: #9aa0a6; --kort: #0f9d58; --todo: #c7ced4;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { display: flex; flex-direction: column; font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--fg); background: var(--bg); }
+  header { position: relative; z-index: 1200; padding: 10px 16px 8px; border-bottom: 1px solid var(--line); background: var(--bg); }
+  .bar { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  h1 { margin: 0; font-size: 17px; }
+  .muted { color: var(--muted); }
+  a { color: var(--lovende); }
+  .chips { display: flex; gap: 6px; margin-top: 8px; overflow-x: auto; scrollbar-width: none; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; flex: none; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg); font: inherit; font-size: 13px; color: var(--fg); cursor: pointer; }
+  .chip[aria-pressed="false"] { opacity: .45; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c); flex: none; }
+  .n { color: var(--muted); font-variant-numeric: tabular-nums; }
+  main { position: relative; flex: 1; min-height: 0; }
+  #map { position: absolute; inset: 0; }
+  .leaflet-popup-content { margin: 12px 14px; min-width: 240px; }
+  .pop h3 { margin: 0 0 2px; font-size: 15px; }
+  .pop p { margin: 6px 0; }
+  .pop .links { display: flex; gap: 10px; flex-wrap: wrap; font-size: 13px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <h1>Kandidat-kartotek</h1>
+    <span class="muted" id="summary">Indlæser …</span>
+    <a href="./">← Til kortet</a>
+  </div>
+  <div class="chips" id="filters"></div>
+</header>
+<main><div id="map"></div></main>
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script>
+// Viser data/kandidater.csv. Kartoteket vedligeholdes med tools/kandidater/ (se README).
+const GROUPS = {
+  lovende:        { label: 'Lovende',       color: 'var(--lovende)', r: 7, on: true },
+  'måske':        { label: 'Måske',         color: 'var(--maybe)',   r: 6, on: true },
+  nej:            { label: 'Afvist',        color: 'var(--nej)',     r: 4, on: false },
+  'på kortet':    { label: 'Allerede på kortet', color: 'var(--kort)', r: 4, on: false },
+  '':             { label: 'Ikke vurderet', color: 'var(--todo)',    r: 3, on: false },
+};
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const coords = (s) => { const m = String(s || '').match(/-?\d+\.\d+/g); return m && m.length >= 2 ? [+m[0], +m[1]] : null; };
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v.slice(4, -1)).trim();
+
+const map = L.map('map', { preferCanvas: true }).setView([56.0, 10.6], 7);
+const base = {
+  'Kort': L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' }),
+  'Satellit': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Esri, Maxar, Earthstar Geographics' }),
+};
+base['Kort'].addTo(map);
+L.control.layers(base, null, { position: 'topright' }).addTo(map);
+
+const layers = {};
+for (const k of Object.keys(GROUPS)) layers[k] = L.layerGroup();
+
+function popup(s, pos) {
+  const [lat, lng] = pos;
+  const ref = (s.osm || '').split(' ')[0];
+  const g = GROUPS[s.vurdering] || GROUPS[''];
+  return `<div class="pop">
+    <h3>${esc(s.navn || '(uden navn)')}</h3>
+    <div class="muted">${esc(s.område)} · <span style="color:${css(g.color)}">●</span> ${esc(g.label)}${s.type ? ' · ' + esc(s.type) : ''}</div>
+    ${s.begrundelse ? `<p>${esc(s.begrundelse)}</p>` : ''}
+    <p class="muted">${esc(s.kategorier)} · score ${esc(s.score)}${s.vurderet ? ' · vurderet ' + esc(s.vurderet) : ''}${s.tæt_på_spot ? ' · spot: ' + esc(s.tæt_på_spot) : ''}</p>
+    <div class="links">
+      <a href="https://www.google.com/maps/@${lat},${lng},150m/data=!3m1!1e3" target="_blank" rel="noopener">Satellit i Google Maps</a>
+      ${ref ? `<a href="https://www.openstreetmap.org/${esc(ref)}" target="_blank" rel="noopener">OSM</a>` : ''}
+      <span class="muted">${esc(s.id)}</span>
+    </div></div>`;
+}
+
+fetch('data/kandidater.csv', { cache: 'no-cache' }).then((r) => r.text()).then((text) => {
+  const rows = Papa.parse(text, { header: true, skipEmptyLines: true }).data.filter((s) => s.osm_status !== 'forsvundet');
+  const counts = {};
+  for (const s of rows) {
+    const key = s.vurdering in GROUPS ? s.vurdering : '';
+    const pos = coords(s.koordinater) || coords(s.auto_koordinater);
+    if (!pos) continue;
+    counts[key] = (counts[key] || 0) + 1;
+    const g = GROUPS[key];
+    L.circleMarker(pos, { radius: g.r, color: '#fff', weight: 1, fillColor: css(g.color), fillOpacity: 0.95 })
+      .bindPopup(() => popup(s, pos)).addTo(layers[key]);
+  }
+  const reviewed = rows.filter((s) => s.vurdering && s.vurdering !== 'på kortet').length;
+  document.getElementById('summary').textContent = `${rows.length} steder fra OpenStreetMap · ${reviewed} vurderet på luftfoto`;
+  const filters = document.getElementById('filters');
+  for (const [k, g] of Object.entries(GROUPS)) {
+    if (g.on) layers[k].addTo(map);
+    const btn = document.createElement('button');
+    btn.className = 'chip';
+    btn.setAttribute('aria-pressed', g.on);
+    btn.innerHTML = `<span class="dot" style="--c:${g.color}"></span>${g.label} <span class="n">${counts[k] || 0}</span>`;
+    btn.onclick = () => {
+      const on = btn.getAttribute('aria-pressed') !== 'true';
+      btn.setAttribute('aria-pressed', on);
+      on ? layers[k].addTo(map) : layers[k].remove();
+    };
+    filters.appendChild(btn);
+  }
+});
+</script>
+</body>
+</html>

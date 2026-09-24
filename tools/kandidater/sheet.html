@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<title>Kontaktark</title>
+<style>
+    html, body { margin: 0; width: 1200px; height: 700px; overflow: hidden; background: #111; font: 13px system-ui, sans-serif; }
+  /* 3×2 celler à 400×350: nærbilledet (x 400–1200) fra hvert skærmbillede i halv størrelse. */
+  .cell { position: absolute; width: 400px; height: 350px; overflow: hidden; outline: 1px solid #000; }
+  .cell img { position: absolute; left: -200px; top: 0; width: 600px; height: 350px; }
+  .lbl { position: absolute; left: 6px; top: 6px; padding: 2px 6px; border-radius: 4px; background: rgba(0,0,0,.75); color: #fff; }
+</style>
+</head>
+<body>
+<script>
+const ids = new URLSearchParams(location.search).get('ids').split(',');
+ids.forEach((id, i) => {
+  const x = (i % 3) * 400, y = Math.floor(i / 3) * 350;
+  document.body.insertAdjacentHTML('beforeend',
+    `<div class="cell" style="left:${x}px;top:${y}px"><img src=".screens/${id}.png"><div class="lbl">${i + 1}: ${id}</div></div>`);
+});
+const imgs = [...document.images];
+Promise.all(imgs.map((im) => im.complete ? 1 : new Promise((r) => { im.onload = im.onerror = r; }))).then(() => { window.__ready = true; });
+</script>
+</body>
+</html>
