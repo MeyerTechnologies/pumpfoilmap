@@ -85,13 +85,14 @@ def main():
         })
     # Fællesbilleder: 20 billeder pr. fil i kandidaternes rækkefølge.
     per = SPRITE["cols"] * SPRITE["rows"]
-    with_img = [c for c in candidates if c["img"]]
+    # Afviste strande og "andet" får intet billede (de fylder meget og skal sjældent genovervejes).
+    with_img = [c for c in candidates if c["img"] and not (c["vurdering"] == "nej" and c["type"] in ("strand", "andet"))]
     for n in range(0, len(with_img), per):
         group = with_img[n:n + per]
         name = f"s/{n // per:03d}.jpg"
         subprocess.run(["magick", "montage", *[c["img"] for c in group], "-tile", f"{SPRITE['cols']}x{SPRITE['rows']}",
                         "-geometry", f"{SPRITE['w']}x{SPRITE['h']}+0+0", "-background", "#1b2a2e",
-                        "-quality", "68", str(OUT / name)], check=True)
+                        "-quality", "64", str(OUT / name)], check=True)
         for i, c in enumerate(group):
             c["img"] = {"s": name, "c": i % SPRITE["cols"], "r": i // SPRITE["cols"]}
     for c in candidates:

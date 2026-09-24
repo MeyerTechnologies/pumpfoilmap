@@ -47,8 +47,12 @@ def categorize(tags):
     sport = tags.get("sport", "").lower()
     leisure = tags.get("leisure", "")
     cats = set()
-    if leisure in ("fitness_centre", "sports_hall", "swimming_pool") or re.search(r"padel|paddle_tennis", sport):
+    if leisure in ("fitness_centre", "sports_hall", "swimming_pool", "water_park") \
+            or re.search(r"padel|paddle_tennis", sport):
         return cats
+    pier_like = tags.get("man_made") == "pier" or tags.get("floating") == "yes"
+    if not pier_like and re.search(r"svømmehal|svømmebad|friluftsbad|(^|\s)hotel\b|reception|cafeteria", name):
+        return cats  # bygninger og bassiner, ikke åbent vand
     if tags.get("type") == "route" or "route" in tags:
         return cats  # kano-/kajakruter er hele strækninger, ikke steder
     if "highway" in tags and tags.get("man_made") != "pier":
@@ -69,7 +73,9 @@ def categorize(tags):
         cats.add("vinterbad")
     if re.search(r"canoe|kayak|paddle(?!_tennis)", sport) or re.search(r"kajak|kano(?!n)", name):
         # Kanolejr-, raste- og teltpladser langs åerne er sjældent relevante.
-        cats.add("kanoplads" if re.search(r"lejr|raste|telt|shelter|indsamling|opsamling|isætning", name) else "kajakklub")
+        # Kano-/kajakpladser langs åerne (bro, rast, lejr, overnatning) er sjældent relevante – lav vægt.
+        kanoplads = r"lejr|raste|rast\b|telt|shelter|indsamling|opsamling|isætning|overnatning|kano ?plads|kanobro|kajakplads|kano- og kajakbro"
+        cats.add("kanoplads" if re.search(kanoplads, name) else "kajakklub")
     if "rowing" in sport or re.search(r"roklub|\bro- og|roforening|roning", name):
         cats.add("roklub")
     if re.search(r"\bsup\b|stand_up_paddle", sport) or re.search(r"\bsup\b", name):
