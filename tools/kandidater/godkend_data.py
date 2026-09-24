@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from kartotek import ROOT, SPOTS_CSV, parse_coords, read_catalog, read_csv  # noqa: E402
+from kartotek import LOG, ROOT, SPOTS_CSV, parse_coords, read_catalog, read_csv  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
 OUT = HERE / ".godkend"
@@ -65,7 +65,20 @@ def main():
     shutil.rmtree(OUT / "img", ignore_errors=True)
     shutil.rmtree(OUT / "s", ignore_errors=True)
     (OUT / "s").mkdir()
-    rows = [r for r in read_catalog() if r["vurdering"] in ("lovende", "måske", "nej") and r["osm_status"] != "forsvundet"]
+    # Steder der er lagt på kortet via kandidatkortet skal stadig kunne ses og rettes; de vises med den
+    # vurdering, de havde, før de kom på kortet (fra loggen).
+    before = {}
+    for l in read_csv(LOG):
+        if l["handling"] == "beslutning: med":
+            before.setdefault(l["id"], l["fra"])
+    rows = []
+    for r in read_catalog():
+        if r["osm_status"] == "forsvundet":
+            continue
+        if r["vurdering"] == "på kortet" and r["id"] in before:
+            r = {**r, "vurdering": before[r["id"]] if before[r["id"]] in ("lovende", "måske", "nej") else "lovende"}
+        if r["vurdering"] in ("lovende", "måske", "nej"):
+            rows.append(r)
     order = {"lovende": 0, "måske": 1, "nej": 2}
     rows.sort(key=lambda r: (order[r["vurdering"]], -float(r["score"] or 0), r["id"]))
     candidates, missing = [], []
@@ -85,8 +98,9 @@ def main():
         })
     # Fællesbilleder: 20 billeder pr. fil i kandidaternes rækkefølge.
     per = SPRITE["cols"] * SPRITE["rows"]
-    # Afviste strande og "andet" får intet billede (de fylder meget og skal sjældent genovervejes).
-    with_img = [c for c in candidates if c["img"] and not (c["vurdering"] == "nej" and c["type"] in ("strand", "andet"))]
+    # Kun lovende og måske får billede: siden må højst fylde 64 MB pr. version. Afviste steder viser et link
+    # til satellitbilledet i Google Maps i stedet.
+    with_img = [c for c in candidates if c["img"] and c["vurdering"] in ("lovende", "måske")]
     for n in range(0, len(with_img), per):
         group = with_img[n:n + per]
         name = f"s/{n // per:03d}.jpg"

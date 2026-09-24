@@ -99,6 +99,7 @@
   .photo { margin: 0; border-radius: 10px; overflow: hidden; background: var(--sunk); border: 1px solid var(--line); }
   .photo .shot { width: 100%; aspect-ratio: 12 / 7; background-repeat: no-repeat; background-color: var(--sunk); }
   .photo figcaption { padding: 6px 12px; font-size: 12px; color: var(--muted); }
+  .noshot { margin: 0; padding: 14px 16px; border: 1px dashed var(--line); border-radius: 10px; color: var(--muted); }
   .head h2 { margin: 0; font-size: 28px; line-height: 1.1; }
   .head .meta { margin-top: 4px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 14px; }
   .facts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -296,7 +297,8 @@
     const canSave = dbState === 'klar';
     $('detail').innerHTML = `
       ${c.img ? `<figure class="photo"><div class="shot" role="img" aria-label="Luftfoto af ${esc(title(c))}: oversigt og nærbillede med den foreslåede startplads markeret" style="${shotStyle(c.img)}"></div>
-        <figcaption>Venstre: oversigt. Højre: nærbillede ca. 240 m bredt – den røde nål er den foreslåede startplads. Luftfoto: Esri, Maxar, Earthstar Geographics.</figcaption></figure>` : ''}
+        <figcaption>Venstre: oversigt. Højre: nærbillede ca. 240 m bredt – den røde nål er den foreslåede startplads. Luftfoto: Esri, Maxar, Earthstar Geographics.</figcaption></figure>`
+        : `<p class="noshot">Afviste steder har intet luftfoto her. <a href="https://www.google.com/maps/@${lat},${lng},180m/data=!3m1!1e3" target="_blank" rel="noopener">Se stedet på satellit i Google Maps</a>.</p>`}
       <div class="head">
         <h2>${esc(title(c))}</h2>
         <div class="meta">
